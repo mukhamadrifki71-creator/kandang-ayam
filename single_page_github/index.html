@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TernakKu - Manajemen Ayam & Ikan Real-time</title>
+  <meta name="description" content="Aplikasi pencatatan ternak ayam dan kolam ikan terintegrasi Supabase Real-time." />
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Supabase JS CDN Official -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .badge-pulse {
+      animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.15); }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-20">
+
+  <!-- TOP HEADER -->
+  <header class="bg-emerald-700 text-white shadow-md sticky top-0 z-30">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-2xl">🌾</span>
+        <div>
+          <h1 class="font-extrabold text-lg leading-tight tracking-tight">TernakKu</h1>
+          <p class="text-xs text-emerald-200">Ayam & Kolam Ikan Real-Time</p>
+        </div>
+      </div>
+      
+      <!-- Status Badge & Settings Button -->
+      <div class="flex items-center gap-2">
+        <button id="status-btn" onclick="openConfigModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-800/80 hover:bg-emerald-800 text-white transition border border-emerald-600">
+          <span id="status-indicator" class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+          <span id="status-text">Cek Koneksi</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- TABS NAVIGATION -->
+    <div class="max-w-4xl mx-auto px-4 flex border-t border-emerald-600/60">
+      <button id="tab-ayam-btn" onclick="switchTab('ayam')" class="flex-1 py-2.5 text-center font-bold text-sm border-b-2 border-white text-white flex items-center justify-center gap-1.5">
+        <span>🐔</span> <span>Ternak Ayam</span>
+      </button>
+      <button id="tab-ikan-btn" onclick="switchTab('ikan')" class="flex-1 py-2.5 text-center font-bold text-sm border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center gap-1.5">
+        <span>🐟</span> <span>Kolam Ikan</span>
+      </button>
+      <button id="tab-sql-btn" onclick="switchTab('sql')" class="py-2.5 px-3 text-center font-medium text-xs border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center gap-1">
+        <span>⚙️</span> <span>SQL & Panduan</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- REALTIME TOAST ALERT -->
+  <div id="realtime-toast" class="hidden fixed bottom-6 right-4 left-4 md:left-auto md:right-6 md:w-96 bg-slate-900 text-white p-3.5 rounded-xl shadow-xl z-50 border border-slate-700 flex items-center justify-between transition-all">
+    <div class="flex items-center gap-2.5">
+      <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+      <p id="toast-message" class="text-xs font-medium">Data real-time diperbarui dari Supabase!</p>
+    </div>
+    <button onclick="hideToast()" class="text-slate-400 hover:text-white text-xs font-bold px-2 py-1">✕</button>
+  </div>
+
+  <main class="max-w-4xl mx-auto px-4 py-6">
+
+    <!-- CONNECTION NOTICE IF EMPTY -->
+    <div id="notice-config" class="hidden mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div class="flex items-start gap-3">
+        <span class="text-xl">⚠️</span>
+        <div>
+          <h4 class="font-bold text-sm text-amber-900">Supabase Belum Dihubungkan</h4>
+          <p class="text-xs text-amber-700">Saat ini menggunakan data demo lokal. Masukkan URL & Anon Key Supabase Anda agar tersimpan di database dan real-time.</p>
+        </div>
+      </div>
+      <button onclick="openConfigModal()" class="text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 rounded-lg transition whitespace-nowrap shadow-sm">
+        Hubungkan Sekarang
+      </button>
+    </div>
+
+    <!-- ==================== TAB AYAM ==================== -->
+    <section id="section-ayam" class="space-y-6">
+      
+      <!-- Ringkasan Statistik Ayam -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Populasi</p>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="ayam-stat-populasi" class="text-2xl font-black text-slate-800">0</span>
+            <span class="text-xs text-slate-500">ekor</span>
+          </div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Telur Hari Ini</p>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="ayam-stat-telur" class="text-2xl font-black text-amber-600">0</span>
+            <span class="text-xs text-slate-500">butir</span>
+          </div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pakan Hari Ini</p>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="ayam-stat-pakan" class="text-2xl font-black text-emerald-600">0</span>
+            <span class="text-xs text-slate-500">kg</span>
+          </div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Produktivitas Telur</p>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="ayam-stat-rate" class="text-2xl font-black text-indigo-600">0%</span>
+            <span class="text-xs text-slate-500">rasio</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SMART AI PREDICTION & MONITORING CARD -->
+      <div id="ayam-smart-card" class="bg-gradient-to-b from-slate-900 to-slate-950 text-white rounded-2xl border border-slate-800 p-5 shadow-xl space-y-4">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2.5">
+            <span class="text-2xl">🤖</span>
+            <div>
+              <h3 class="font-extrabold text-sm text-white tracking-tight flex items-center gap-2">
+                Monitoring & Prediksi Cerdas Ayam
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">AI Live</span>
+              </h3>
+              <p class="text-[11px] text-slate-400">Prediksi telur esok hari, evaluasi pakan layer, & deteksi dini stres/penyakit</p>
+            </div>
+          </div>
+          <span id="ai-health-badge" class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
+            Kondisi Prima
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-amber-400">Prediksi Telur Besok</p>
+            <p class="text-2xl font-black text-amber-400 mt-1" id="ai-prediksi-telur">~0 butir</p>
+            <p class="text-[11px] text-slate-300 mt-1" id="ai-tren-text">Memantau tren produksi...</p>
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Skor Kesehatan Kandang</p>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl font-black text-emerald-400" id="ai-skor-kesehatan">85</span>
+              <span class="text-xs text-slate-400">/ 100</span>
+            </div>
+            <div class="w-full bg-slate-900 rounded-full h-1.5 mt-2 overflow-hidden">
+              <div id="ai-skor-bar" class="h-full bg-emerald-500 rounded-full" style="width: 85%"></div>
+            </div>
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-cyan-400">Evaluasi Pakan Harian</p>
+            <p class="text-xs text-slate-200 mt-1 font-medium leading-relaxed" id="ai-pakan-eval">
+              Menghitung gram pakan/ekor...
+            </p>
+            <p class="text-[10px] text-slate-400 mt-1">Standar layer: 110 - 120 gram/ekor/hari</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <div class="p-3 rounded-xl bg-slate-800/50 border border-slate-700/60">
+            <h5 class="text-xs font-bold text-rose-400 mb-1.5 flex items-center gap-1">
+              <span>⚠️</span> Deteksi Dini Anomali
+            </h5>
+            <div id="ai-peringatan-list" class="text-xs text-slate-300 space-y-1 leading-relaxed">
+              <p>Tidak ada anomali kritis. Kondisi aman.</p>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-slate-800/50 border border-slate-700/60">
+            <h5 class="text-xs font-bold text-emerald-400 mb-1.5 flex items-center gap-1">
+              <span>💡</span> Saran Tindakan Dokter Unggas
+            </h5>
+            <div id="ai-rekomendasi-list" class="text-xs text-slate-300 space-y-1 leading-relaxed">
+              <p>Pastikan pencahayaan 16 jam/hari dan vitamin antistres di cuaca panas.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Tambah Catatan Ayam -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-xs p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <span class="p-2 bg-emerald-50 rounded-lg text-emerald-600">📝</span>
+            <h3 class="font-bold text-slate-800 text-base">Tambah Catatan Ayam</h3>
+          </div>
+          <span class="text-xs text-slate-400">Input harian</span>
+        </div>
+
+        <form id="form-ayam" onsubmit="handleSimpanAyam(event)" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Tanggal</label>
+              <input type="date" id="ayam-tanggal" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50/50" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Jumlah Ayam (Ekor)</label>
+              <input type="number" id="ayam-jumlah" min="0" placeholder="Contoh: 120" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Pakan Harian (Kg)</label>
+              <input type="number" step="0.1" min="0" id="ayam-pakan" placeholder="Contoh: 15.5" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Jumlah Telur (Butir)</label>
+              <input type="number" min="0" id="ayam-telur" placeholder="Contoh: 98" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Catatan Tambahan (Opsional)</label>
+            <input type="text" id="ayam-catatan" placeholder="Contoh: Ayam sehat, nafsu makan tinggi, cuaca cerah..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+          </div>
+
+          <div class="flex justify-end">
+            <button type="submit" id="btn-submit-ayam" class="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-lg transition shadow-xs flex items-center justify-center gap-2">
+              <span>Simpan Catatan Ayam</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Riwayat Catatan Ayam -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-slate-800 text-sm">Riwayat Catatan Harian Ayam</span>
+            <span id="ayam-count-badge" class="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600">0 data</span>
+          </div>
+          <span class="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 badge-pulse"></span>
+            Real-time Sync
+          </span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-600">
+            <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-semibold border-b border-slate-200">
+              <tr>
+                <th class="px-4 py-3">Tanggal</th>
+                <th class="px-4 py-3">Jumlah Ayam</th>
+                <th class="px-4 py-3">Pakan (Kg)</th>
+                <th class="px-4 py-3">Telur (Butir)</th>
+                <th class="px-4 py-3">Catatan</th>
+                <th class="px-4 py-3 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="ayam-table-body" class="divide-y divide-slate-100">
+              <tr>
+                <td colspan="6" class="px-4 py-8 text-center text-slate-400 text-xs">Memuat data...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== TAB IKAN ==================== -->
+    <section id="section-ikan" class="space-y-6 hidden">
+      
+      <!-- Ringkasan Statistik Ikan -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Kolam</p>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="ikan-stat-kolam" class="text-2xl font-black text-slate-800">0</span>
+            <span class="text-xs text-slate-500">kolam</span>
+          </div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Populasi</p>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="ikan-stat-populasi" class="text-2xl font-black text-cyan-600">0</span>
+            <span class="text-xs text-slate-500">ekor</span>
+          </div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pakan Harian</p>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="ikan-stat-pakan" class="text-2xl font-black text-emerald-600">0</span>
+            <span class="text-xs text-slate-500">kg</span>
+          </div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Perlu Kuras Air</p>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="ikan-stat-kuras" class="text-2xl font-black text-rose-600">0</span>
+            <span class="text-xs text-slate-500">kolam</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Tambah Catatan Ikan -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-xs p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <span class="p-2 bg-cyan-50 rounded-lg text-cyan-600">🐟</span>
+            <h3 class="font-bold text-slate-800 text-base">Tambah Catatan Kolam Ikan</h3>
+          </div>
+          <span class="text-xs text-slate-400">Monitoring & Kuras</span>
+        </div>
+
+        <form id="form-ikan" onsubmit="handleSimpanIkan(event)" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Nama / Nomor Kolam</label>
+              <input type="text" id="ikan-nama-kolam" placeholder="Contoh: Kolam Bioflok A1" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Jenis Ikan</label>
+              <input type="text" id="ikan-jenis" placeholder="Contoh: Lele / Nila Merah / Gurame" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Jumlah Ikan (Ekor)</label>
+              <input type="number" min="0" id="ikan-jumlah" placeholder="Contoh: 500" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Pakan Harian (Kg)</label>
+              <input type="number" step="0.1" min="0" id="ikan-pakan" placeholder="Contoh: 4.5" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Jadwal Kuras Air Berikutnya</label>
+              <input type="date" id="ikan-jadwal-kuras" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 bg-slate-50/50" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Status Kualitas Air</label>
+              <select id="ikan-status-air" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 bg-white">
+                <option value="Bersih">Jernih / Bersih</option>
+                <option value="Cukup">Cukup / Normal</option>
+                <option value="Perlu Kuras">Keruh (Perlu Kuras)</option>
+                <option value="Selesai Kuras">Baru Selesai Kuras</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Catatan Tambahan (Opsional)</label>
+            <input type="text" id="ikan-catatan" placeholder="Contoh: Aerator aktif 24 jam, nafsu makan lincah..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500" />
+          </div>
+
+          <div class="flex justify-end">
+            <button type="submit" id="btn-submit-ikan" class="w-full sm:w-auto px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-sm rounded-lg transition shadow-xs flex items-center justify-center gap-2">
+              <span>Simpan Catatan Kolam</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Riwayat Catatan Ikan -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-slate-800 text-sm">Daftar Kolam & Jadwal Kuras Air</span>
+            <span id="ikan-count-badge" class="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600">0 kolam</span>
+          </div>
+          <span class="text-[11px] text-cyan-600 font-semibold flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-cyan-500 badge-pulse"></span>
+            Real-time Sync
+          </span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-600">
+            <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-semibold border-b border-slate-200">
+              <tr>
+                <th class="px-4 py-3">Nama Kolam</th>
+                <th class="px-4 py-3">Jenis Ikan</th>
+                <th class="px-4 py-3">Populasi</th>
+                <th class="px-4 py-3">Pakan (Kg)</th>
+                <th class="px-4 py-3">Jadwal Kuras</th>
+                <th class="px-4 py-3">Status Air</th>
+                <th class="px-4 py-3 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="ikan-table-body" class="divide-y divide-slate-100">
+              <tr>
+                <td colspan="7" class="px-4 py-8 text-center text-slate-400 text-xs">Memuat data...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== TAB SQL & PANDUAN ==================== -->
+    <section id="section-sql" class="space-y-6 hidden">
+      <div class="bg-white rounded-xl border border-slate-200 shadow-xs p-5">
+        <h3 class="text-base font-bold text-slate-800 mb-2">📋 Panduan 3 Menit Menghubungkan Supabase</h3>
+        <p class="text-xs text-slate-500 mb-4">
+          Ikuti langkah mudah berikut agar data tersimpan aman di cloud Supabase dan terupdate secara real-time pada gawai/HP lain secara otomatis.
+        </p>
+
+        <div class="space-y-3 mb-6">
+          <div class="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+            <span class="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0">1</span>
+            <div>
+              <h4 class="font-bold text-xs text-slate-800">Buat Akun & Project Baru di Supabase</h4>
+              <p class="text-xs text-slate-500 mt-0.5">Buka <a href="https://supabase.com" target="_blank" class="text-emerald-600 underline font-semibold">https://supabase.com</a>, buat project baru gratis.</p>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+            <span class="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0">2</span>
+            <div>
+              <h4 class="font-bold text-xs text-slate-800">Buka Menu "SQL Editor" & Jalankan Script di Bawah</h4>
+              <p class="text-xs text-slate-500 mt-0.5">Klik tombol "Salin SQL" di bawah, paste ke SQL Editor Supabase, lalu klik "Run". Script ini otomatis mengaktifkan tabel, izin publik, dan fitur real-time (publication).</p>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+            <span class="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0">3</span>
+            <div>
+              <h4 class="font-bold text-xs text-slate-800">Salin Project URL & Anon Key ke Web Ini</h4>
+              <p class="text-xs text-slate-500 mt-0.5">Masuk ke Project Settings &rarr; API. Salin URL dan anon public key, lalu klik tombol "Cek Koneksi" di kanan atas header untuk menyimpannya.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="relative">
+          <div class="flex items-center justify-between bg-slate-800 text-slate-200 px-4 py-2 rounded-t-lg text-xs font-semibold">
+            <span>SQL Schema Supabase (Lengkap dengan Real-Time)</span>
+            <button onclick="copySqlSchema()" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold transition">
+              Salin SQL
+            </button>
+          </div>
+          <pre id="sql-code-block" class="bg-slate-900 text-emerald-400 p-4 rounded-b-lg text-xs font-mono overflow-x-auto max-h-80 leading-relaxed"></pre>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== MODAL KONFIGURASI SUPABASE ==================== -->
+  <div id="modal-config" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
+      <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">⚡</span>
+          <div>
+            <h3 class="font-bold text-slate-800 text-sm">Pengaturan Supabase Real-time</h3>
+            <p class="text-xs text-slate-500">Koneksikan API Supabase Anda</p>
+          </div>
+        </div>
+        <button onclick="closeConfigModal()" class="text-slate-400 hover:text-slate-600 p-1 text-sm font-bold">✕</button>
+      </div>
+
+      <form onsubmit="handleSaveConfig(event)" class="p-5 space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Project URL Supabase</label>
+          <input type="url" id="input-supabase-url" placeholder="https://xyzcompany.supabase.co" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-xs font-mono" />
+          <p class="text-[11px] text-slate-400 mt-1">Ditemukan di Project Settings &rarr; API &rarr; Project URL</p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Anon / Public API Key</label>
+          <input type="text" id="input-supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-xs font-mono" />
+          <p class="text-[11px] text-slate-400 mt-1">Ditemukan di Project Settings &rarr; API &rarr; Project API keys (anon public)</p>
+        </div>
+
+        <div id="config-status-msg" class="hidden text-xs p-3 rounded-lg"></div>
+
+        <div class="flex items-center justify-between pt-2">
+          <button type="button" onclick="testConnection()" class="px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
+            Tes Koneksi
+          </button>
+          <div class="flex gap-2">
+            <button type="button" onclick="closeConfigModal()" class="px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-700">
+              Batal
+            </button>
+            <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition">
+              Simpan & Hubungkan
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== JAVASCRIPT LOGIC ==================== -->
+  <script>
+    // --- SQL SCHEMA CODE ---
+    const SQL_SCHEMA = `-- 1. Buat Tabel Catatan Ayam
+CREATE TABLE IF NOT EXISTS public.catatan_ayam (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  tanggal DATE DEFAULT CURRENT_DATE NOT NULL,
+  jumlah_ayam INTEGER NOT NULL CHECK (jumlah_ayam >= 0),
+  pakan_kg NUMERIC(8, 2) NOT NULL CHECK (pakan_kg >= 0),
+  jumlah_telur INTEGER NOT NULL CHECK (jumlah_telur >= 0),
+  catatan TEXT DEFAULT ''
+);
+
+-- 2. Buat Tabel Catatan Ikan
+CREATE TABLE IF NOT EXISTS public.catatan_ikan (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  tanggal DATE DEFAULT CURRENT_DATE NOT NULL,
+  nama_kolam TEXT NOT NULL,
+  jenis_ikan TEXT NOT NULL,
+  jumlah_ikan INTEGER NOT NULL CHECK (jumlah_ikan >= 0),
+  pakan_kg NUMERIC(8, 2) NOT NULL CHECK (pakan_kg >= 0),
+  jadwal_kuras DATE NOT NULL,
+  status_air TEXT DEFAULT 'Bersih',
+  catatan TEXT DEFAULT ''
+);
+
+-- 3. Aktifkan RLS & Kebijakan Akses Publik
+ALTER TABLE public.catatan_ayam ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.catatan_ikan ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Akses Publik Catatan Ayam" ON public.catatan_ayam 
+  FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+CREATE POLICY "Akses Publik Catatan Ikan" ON public.catatan_ikan 
+  FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- 4. PENTING: Aktifkan Real-Time Supabase (onpostgreschanges)
+ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ayam;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
+
+    // --- STATE VARIABLES ---
+    let supabase = null;
+    let realtimeChannel = null;
+    let ayamList = [];
+    let ikanList = [];
+    let activeTab = 'ayam';
+
+    // Default configuration (can be preset or loaded from localStorage)
+    let config = {
+      url: localStorage.getItem('ternakku_sp_url') || '',
+      key: localStorage.getItem('ternakku_sp_key') || ''
+    };
+
+    // --- INITIALIZATION ---
+    window.addEventListener('DOMContentLoaded', () => {
+      // Set default date inputs to today
+      const today = new Date().toISOString().slice(0, 10);
+      document.getElementById('ayam-tanggal').value = today;
+      // Jadwal kuras default 5 hari dari sekarang
+      const nextDrain = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
+      document.getElementById('ikan-jadwal-kuras').value = nextDrain;
+
+      // Populate SQL code block
+      document.getElementById('sql-code-block').innerText = SQL_SCHEMA;
+
+      // Init Supabase or fallback
+      initSupabase();
+    });
+
+    // --- SUPABASE CLIENT & REAL-TIME SUBSCRIPTION ---
+    function initSupabase() {
+      if (config.url && config.key && window.supabase) {
+        try {
+          supabase = window.supabase.createClient(config.url, config.key);
+          updateStatusUI(true, 'Supabase Real-time Aktif');
+          document.getElementById('notice-config').classList.add('hidden');
+          loadDataFromSupabase();
+          setupRealtimeSubscription();
+          return;
+        } catch (e) {
+          console.error('Gagal inisialisasi Supabase:', e);
+        }
+      }
+
+      // Fallback: Mode Demo Lokal
+      updateStatusUI(false, 'Mode Demo Lokal');
+      document.getElementById('notice-config').classList.remove('hidden');
+      loadDataFromLocalStorage();
+    }
+
+    function setupRealtimeSubscription() {
+      if (!supabase) return;
+
+      // Clean existing channel if any
+      if (realtimeChannel) {
+        supabase.removeChannel(realtimeChannel);
+      }
+
+      // Dengarkan perubahan pada kedua tabel (catatan_ayam & catatan_ikan)
+      realtimeChannel = supabase.channel('schema-db-changes')
+        // Catatan Ayam Real-time
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'catatan_ayam' },
+          (payload) => {
+            handleAyamRealtimeEvent(payload);
+          }
+        )
+        // Catatan Ikan Real-time
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'catatan_ikan' },
+          (payload) => {
+            handleIkanRealtimeEvent(payload);
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('⚡ Real-time subscription aktif untuk catatan_ayam & catatan_ikan!');
+          }
+        });
+    }
+
+    function handleAyamRealtimeEvent(payload) {
+      const { eventType, new: newRecord, old: oldRecord } = payload;
+      let actionText = '';
+
+      if (eventType === 'INSERT') {
+        if (!ayamList.some(item => item.id === newRecord.id)) {
+          ayamList.unshift(newRecord);
+        }
+        actionText = 'Catatan ayam baru ditambahkan!';
+      } else if (eventType === 'UPDATE') {
+        ayamList = ayamList.map(item => item.id === newRecord.id ? newRecord : item);
+        actionText = 'Catatan ayam diperbarui!';
+      } else if (eventType === 'DELETE') {
+        ayamList = ayamList.filter(item => item.id !== oldRecord.id);
+        actionText = 'Catatan ayam dihapus!';
+      }
+
+      renderAyam();
+      showToast(actionText);
+    }
+
+    function handleIkanRealtimeEvent(payload) {
+      const { eventType, new: newRecord, old: oldRecord } = payload;
+      let actionText = '';
+
+      if (eventType === 'INSERT') {
+        if (!ikanList.some(item => item.id === newRecord.id)) {
+          ikanList.unshift(newRecord);
+        }
+        actionText = 'Kolam/catatan ikan baru ditambahkan!';
+      } else if (eventType === 'UPDATE') {
+        ikanList = ikanList.map(item => item.id === newRecord.id ? newRecord : item);
+        actionText = 'Data kolam ikan diperbarui!';
+      } else if (eventType === 'DELETE') {
+        ikanList = ikanList.filter(item => item.id !== oldRecord.id);
+        actionText = 'Data kolam ikan dihapus!';
+      }
+
+      renderIkan();
+      showToast(actionText);
+    }
+
+    // --- FETCH DATA ---
+    async function loadDataFromSupabase() {
+      try {
+        const [resAyam, resIkan] = await Promise.all([
+          supabase.from('catatan_ayam').select('*').order('tanggal', { ascending: false }).order('created_at', { ascending: false }),
+          supabase.from('catatan_ikan').select('*').order('tanggal', { ascending: false }).order('created_at', { ascending: false })
+        ]);
+
+        if (resAyam.error) throw resAyam.error;
+        if (resIkan.error) throw resIkan.error;
+
+        ayamList = resAyam.data || [];
+        ikanList = resIkan.data || [];
+        renderAyam();
+        renderIkan();
+      } catch (err) {
+        console.error('Error mengambil data dari Supabase:', err);
+        showToast('Gagal memuat data dari Supabase: ' + err.message);
+        loadDataFromLocalStorage();
+      }
+    }
+
+    function loadDataFromLocalStorage() {
+      const localAyam = localStorage.getItem('demo_ayam');
+      const localIkan = localStorage.getItem('demo_ikan');
+
+      if (localAyam) {
+        ayamList = JSON.parse(localAyam);
+      } else {
+        ayamList = [
+          { id: '1', tanggal: new Date().toISOString().slice(0, 10), jumlah_ayam: 120, pakan_kg: 15.0, jumlah_telur: 102, catatan: 'Kondisi ayam sehat' },
+          { id: '2', tanggal: new Date(Date.now() - 86400000).toISOString().slice(0, 10), jumlah_ayam: 120, pakan_kg: 14.8, jumlah_telur: 98, catatan: 'Pakan habis bersih' }
+        ];
+        localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
+      }
+
+      if (localIkan) {
+        ikanList = JSON.parse(localIkan);
+      } else {
+        ikanList = [
+          { id: '1', tanggal: new Date().toISOString().slice(0, 10), nama_kolam: 'Kolam Bioflok A1', jenis_ikan: 'Nila Merah', jumlah_ikan: 500, pakan_kg: 4.5, jadwal_kuras: new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10), status_air: 'Bersih', catatan: 'Air warna hijau stabil' },
+          { id: '2', tanggal: new Date().toISOString().slice(0, 10), nama_kolam: 'Kolam Terpal B1', jenis_ikan: 'Lele Sangkuriang', jumlah_ikan: 800, pakan_kg: 6.0, jadwal_kuras: new Date().toISOString().slice(0, 10), status_air: 'Perlu Kuras', catatan: 'Jadwal kuras dasar hari ini' }
+        ];
+        localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
+      }
+
+      renderAyam();
+      renderIkan();
+    }
+
+    // --- FORM ACTIONS ---
+    async function handleSimpanAyam(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-submit-ayam');
+      btn.disabled = true;
+      btn.innerText = 'Menyimpan...';
+
+      const data = {
+        tanggal: document.getElementById('ayam-tanggal').value,
+        jumlah_ayam: parseInt(document.getElementById('ayam-jumlah').value, 10) || 0,
+        pakan_kg: parseFloat(document.getElementById('ayam-pakan').value) || 0,
+        jumlah_telur: parseInt(document.getElementById('ayam-telur').value, 10) || 0,
+        catatan: document.getElementById('ayam-catatan').value.trim()
+      };
+
+      if (supabase) {
+        try {
+          const { error } = await supabase.from('catatan_ayam').insert([data]);
+          if (error) throw error;
+          resetAyamForm();
+        } catch (err) {
+          alert('Gagal menyimpan ke Supabase: ' + err.message);
+        }
+      } else {
+        data.id = 'demo-' + Date.now();
+        ayamList.unshift(data);
+        localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
+        renderAyam();
+        resetAyamForm();
+        showToast('Catatan tersimpan di mode lokal!');
+      }
+
+      btn.disabled = false;
+      btn.innerText = 'Simpan Catatan Ayam';
+    }
+
+    function resetAyamForm() {
+      document.getElementById('ayam-jumlah').value = '';
+      document.getElementById('ayam-pakan').value = '';
+      document.getElementById('ayam-telur').value = '';
+      document.getElementById('ayam-catatan').value = '';
+    }
+
+    async function handleSimpanIkan(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-submit-ikan');
+      btn.disabled = true;
+      btn.innerText = 'Menyimpan...';
+
+      const data = {
+        tanggal: new Date().toISOString().slice(0, 10),
+        nama_kolam: document.getElementById('ikan-nama-kolam').value.trim(),
+        jenis_ikan: document.getElementById('ikan-jenis').value.trim(),
+        jumlah_ikan: parseInt(document.getElementById('ikan-jumlah').value, 10) || 0,
+        pakan_kg: parseFloat(document.getElementById('ikan-pakan').value) || 0,
+        jadwal_kuras: document.getElementById('ikan-jadwal-kuras').value,
+        status_air: document.getElementById('ikan-status-air').value,
+        catatan: document.getElementById('ikan-catatan').value.trim()
+      };
+
+      if (supabase) {
+        try {
+          const { error } = await supabase.from('catatan_ikan').insert([data]);
+          if (error) throw error;
+          resetIkanForm();
+        } catch (err) {
+          alert('Gagal menyimpan ke Supabase: ' + err.message);
+        }
+      } else {
+        data.id = 'demo-' + Date.now();
+        ikanList.unshift(data);
+        localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
+        renderIkan();
+        resetIkanForm();
+        showToast('Catatan kolam tersimpan di mode lokal!');
+      }
+
+      btn.disabled = false;
+      btn.innerText = 'Simpan Catatan Kolam';
+    }
+
+    function resetIkanForm() {
+      document.getElementById('ikan-nama-kolam').value = '';
+      document.getElementById('ikan-jenis').value = '';
+      document.getElementById('ikan-jumlah').value = '';
+      document.getElementById('ikan-pakan').value = '';
+      document.getElementById('ikan-catatan').value = '';
+    }
+
+    async function hapusAyam(id) {
+      if (!confirm('Hapus catatan ayam ini?')) return;
+      if (supabase) {
+        const { error } = await supabase.from('catatan_ayam').delete().eq('id', id);
+        if (error) alert('Gagal menghapus: ' + error.message);
+      } else {
+        ayamList = ayamList.filter(item => item.id !== id);
+        localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
+        renderAyam();
+        showToast('Catatan berhasil dihapus!');
+      }
+    }
+
+    async function hapusIkan(id) {
+      if (!confirm('Hapus catatan kolam ikan ini?')) return;
+      if (supabase) {
+        const { error } = await supabase.from('catatan_ikan').delete().eq('id', id);
+        if (error) alert('Gagal menghapus: ' + error.message);
+      } else {
+        ikanList = ikanList.filter(item => item.id !== id);
+        localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
+        renderIkan();
+        showToast('Catatan kolam berhasil dihapus!');
+      }
+    }
+
+    // --- RENDERING ---
+    function renderAyam() {
+      const tbody = document.getElementById('ayam-table-body');
+      document.getElementById('ayam-count-badge').innerText = ayamList.length + ' data';
+
+      if (ayamList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada catatan ayam. Tambahkan di form atas.</td></tr>';
+        document.getElementById('ayam-stat-populasi').innerText = '0';
+        document.getElementById('ayam-stat-telur').innerText = '0';
+        document.getElementById('ayam-stat-pakan').innerText = '0';
+        document.getElementById('ayam-stat-rate').innerText = '0%';
+        return;
+      }
+
+      const latest = ayamList[0];
+      document.getElementById('ayam-stat-populasi').innerText = latest.jumlah_ayam || 0;
+      document.getElementById('ayam-stat-telur').innerText = latest.jumlah_telur || 0;
+      document.getElementById('ayam-stat-pakan').innerText = (latest.pakan_kg || 0).toFixed(1);
+      
+      const prodRate = latest.jumlah_ayam > 0 
+        ? Math.round(((latest.jumlah_telur || 0) / latest.jumlah_ayam) * 100)
+        : 0;
+      document.getElementById('ayam-stat-rate').innerText = prodRate + '%';
+
+      // --- PERHITUNGAN PREDIKSI & MONITORING CERDAS ---
+      const prev = ayamList.length > 1 ? ayamList[1] : latest;
+      const gramPerEkor = latest.jumlah_ayam > 0 ? (latest.pakan_kg * 1000) / latest.jumlah_ayam : 0;
+      const deltaTelur = latest.jumlah_telur - prev.jumlah_telur;
+
+      // Prediksi Telur Besok (Moving Average + Trend Delta)
+      const sample = ayamList.slice(0, 3);
+      const avgTelur = sample.reduce((acc, c) => acc + (c.jumlah_telur || 0), 0) / sample.length;
+      const prediksiBesok = Math.max(0, Math.round(avgTelur + (deltaTelur > 0 ? 1 : deltaTelur < 0 ? -1 : 0)));
+      document.getElementById('ai-prediksi-telur').innerText = '~' + prediksiBesok + ' butir';
+
+      const trenDesc = deltaTelur >= 0 
+        ? '📈 Tren naik stabil (+ ' + deltaTelur + ' butir dibanding catatan sebelumnya)'
+        : '📉 Terjadi penurunan (- ' + Math.abs(deltaTelur) + ' butir dibanding catatan sebelumnya)';
+      document.getElementById('ai-tren-text').innerText = trenDesc;
+
+      // Evaluasi Pakan Gram/Ekor
+      let pakanEvalText = 'Konsumsi saat ini ' + gramPerEkor.toFixed(0) + ' gram/ekor/hari. ';
+      if (gramPerEkor >= 110 && gramPerEkor <= 125) {
+        pakanEvalText += 'Sangat ideal sesuai standar layer Indonesia.';
+      } else if (gramPerEkor < 110) {
+        pakanEvalText += 'Kurang dari standar (115-120g). Risiko produksi telur drop.';
+      } else {
+        pakanEvalText += 'Agak berlebih. Waspadai kegemukan pada ayam.';
+      }
+      document.getElementById('ai-pakan-eval').innerText = pakanEvalText;
+
+      // Skor Kesehatan & Status
+      let healthScore = 80;
+      if (prodRate >= 85) healthScore += 15;
+      else if (prodRate >= 75) healthScore += 5;
+      else if (prodRate < 65) healthScore -= 20;
+
+      if (gramPerEkor >= 110 && gramPerEkor <= 125) healthScore += 5;
+      else if (gramPerEkor > 135 || gramPerEkor < 100) healthScore -= 10;
+      healthScore = Math.max(25, Math.min(100, Math.round(healthScore)));
+
+      document.getElementById('ai-skor-kesehatan').innerText = healthScore;
+      const barEl = document.getElementById('ai-skor-bar');
+      barEl.style.width = healthScore + '%';
+
+      const badgeEl = document.getElementById('ai-health-badge');
+      if (healthScore >= 80) {
+        barEl.className = 'h-full bg-emerald-500 rounded-full transition-all duration-500';
+        badgeEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800';
+        badgeEl.innerText = 'Kondisi Prima & Sangat Produktif';
+      } else if (healthScore >= 65) {
+        barEl.className = 'h-full bg-amber-500 rounded-full transition-all duration-500';
+        badgeEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-950 text-amber-300 border border-amber-800';
+        badgeEl.innerText = 'Normal / Butuh Pemantauan';
+      } else {
+        barEl.className = 'h-full bg-rose-500 rounded-full transition-all duration-500';
+        badgeEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-950 text-rose-300 border border-rose-800 animate-pulse';
+        badgeEl.innerText = 'Waspada / Perlu Penanganan';
+      }
+
+      // Anomali & Rekomendasi
+      const warnings = [];
+      if (deltaTelur <= -10) warnings.push('⚠️ Penurunan hasil telur tajam (' + deltaTelur + ' butir). Cek stres atau kualitas air minum.');
+      if (gramPerEkor < 105) warnings.push('⚠️ Asupan pakan ' + gramPerEkor.toFixed(0) + 'g/ekor di bawah standar.');
+      if (prodRate < 60) warnings.push('⚠️ Rasio telur ' + prodRate + '% di bawah standar minimal ayam petelur produktif.');
+      if (warnings.length === 0) warnings.push('✅ Tidak ada anomali kritis. Parameter kandang berjalan normal.');
+
+      document.getElementById('ai-peringatan-list').innerHTML = warnings.map(w => '<p>' + w + '</p>').join('');
+
+      const recommendations = [];
+      if (gramPerEkor < 110) {
+        recommendations.push('💡 Tambah porsi pakan konsentrat jagung bertahap ke 115-120 gram/ekor.');
+      } else {
+        recommendations.push('💡 Jaga konsistensi jadwal pemberian pakan 2x sehari (pagi 40%, sore 60%).');
+      }
+      recommendations.push('💡 Pastikan durasi pencahayaan total 16 jam per hari (lampu malam menyala 3-4 jam).');
+      if (deltaTelur < 0) {
+        recommendations.push('💡 Berikan suplemen vitamin antistres di air minum sore hari.');
+      }
+      document.getElementById('ai-rekomendasi-list').innerHTML = recommendations.map(r => '<p>' + r + '</p>').join('');
+
+      tbody.innerHTML = ayamList.map(item => `
+        <tr class="hover:bg-slate-50 transition">
+          <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">\${item.tanggal || '-'}</td>
+          <td class="px-4 py-3 text-slate-700 whitespace-nowrap"><span class="font-bold text-slate-900">\${item.jumlah_ayam}</span> ekor</td>
+          <td class="px-4 py-3 text-emerald-600 font-bold whitespace-nowrap">\${item.pakan_kg} kg</td>
+          <td class="px-4 py-3 text-amber-600 font-bold whitespace-nowrap">\${item.jumlah_telur} butir</td>
+          <td class="px-4 py-3 text-slate-500 text-xs max-w-xs truncate">\${item.catatan || '-'}</td>
+          <td class="px-4 py-3 text-right whitespace-nowrap">
+            <button onclick="hapusAyam('\${item.id}')" class="text-xs font-semibold text-rose-500 hover:text-rose-700 px-2 py-1 rounded hover:bg-rose-50 transition">
+              Hapus
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderIkan() {
+      const tbody = document.getElementById('ikan-table-body');
+      document.getElementById('ikan-count-badge').innerText = ikanList.length + ' kolam';
+
+      if (ikanList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada catatan kolam ikan. Tambahkan di form atas.</td></tr>';
+        document.getElementById('ikan-stat-kolam').innerText = '0';
+        document.getElementById('ikan-stat-populasi').innerText = '0';
+        document.getElementById('ikan-stat-pakan').innerText = '0';
+        document.getElementById('ikan-stat-kuras').innerText = '0';
+        return;
+      }
+
+      const totalKolam = ikanList.length;
+      const totalPopulasi = ikanList.reduce((acc, curr) => acc + (Number(curr.jumlah_ikan) || 0), 0);
+      const totalPakan = ikanList.reduce((acc, curr) => acc + (Number(curr.pakan_kg) || 0), 0);
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      let perluKurasCount = 0;
+
+      tbody.innerHTML = ikanList.map(item => {
+        const isPastOrToday = item.jadwal_kuras <= todayStr;
+        if (isPastOrToday || item.status_air === 'Perlu Kuras') {
+          perluKurasCount++;
+        }
+
+        let badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        if (item.status_air === 'Perlu Kuras' || isPastOrToday) {
+          badgeClass = 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse';
+        } else if (item.status_air === 'Cukup') {
+          badgeClass = 'bg-amber-50 text-amber-700 border-amber-200';
+        }
+
+        return `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="px-4 py-3 font-bold text-slate-800 whitespace-nowrap">\${item.nama_kolam}</td>
+            <td class="px-4 py-3 text-cyan-700 font-medium whitespace-nowrap">\${item.jenis_ikan}</td>
+            <td class="px-4 py-3 text-slate-700 whitespace-nowrap"><span class="font-bold text-slate-900">\${item.jumlah_ikan}</span> ekor</td>
+            <td class="px-4 py-3 text-emerald-600 font-bold whitespace-nowrap">\${item.pakan_kg} kg</td>
+            <td class="px-4 py-3 whitespace-nowrap font-medium \${isPastOrToday ? 'text-rose-600 font-bold' : 'text-slate-600'}">
+              \${item.jadwal_kuras} \${isPastOrToday ? '⚠️' : ''}
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap">
+              <span class="inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full border \${badgeClass}">
+                \${item.status_air || 'Bersih'}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-right whitespace-nowrap">
+              <button onclick="hapusIkan('\${item.id}')" class="text-xs font-semibold text-rose-500 hover:text-rose-700 px-2 py-1 rounded hover:bg-rose-50 transition">
+                Hapus
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('ikan-stat-kolam').innerText = totalKolam;
+      document.getElementById('ikan-stat-populasi').innerText = totalPopulasi.toLocaleString('id-ID');
+      document.getElementById('ikan-stat-pakan').innerText = totalPakan.toFixed(1);
+      document.getElementById('ikan-stat-kuras').innerText = perluKurasCount;
+    }
+
+    // --- TAB SWITCHER ---
+    function switchTab(tab) {
+      activeTab = tab;
+      const secAyam = document.getElementById('section-ayam');
+      const secIkan = document.getElementById('section-ikan');
+      const secSql = document.getElementById('section-sql');
+
+      const btnAyam = document.getElementById('tab-ayam-btn');
+      const btnIkan = document.getElementById('tab-ikan-btn');
+      const btnSql = document.getElementById('tab-sql-btn');
+
+      secAyam.classList.add('hidden');
+      secIkan.classList.add('hidden');
+      secSql.classList.add('hidden');
+
+      btnAyam.className = "flex-1 py-2.5 text-center font-bold text-sm border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center gap-1.5";
+      btnIkan.className = "flex-1 py-2.5 text-center font-bold text-sm border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center gap-1.5";
+      btnSql.className = "py-2.5 px-3 text-center font-medium text-xs border-b-2 border-transparent text-emerald-200 hover:text-white flex items-center justify-center gap-1";
+
+      if (tab === 'ayam') {
+        secAyam.classList.remove('hidden');
+        btnAyam.className = "flex-1 py-2.5 text-center font-bold text-sm border-b-2 border-white text-white flex items-center justify-center gap-1.5";
+      } else if (tab === 'ikan') {
+        secIkan.classList.remove('hidden');
+        btnIkan.className = "flex-1 py-2.5 text-center font-bold text-sm border-b-2 border-white text-white flex items-center justify-center gap-1.5";
+      } else if (tab === 'sql') {
+        secSql.classList.remove('hidden');
+        btnSql.className = "py-2.5 px-3 text-center font-bold text-xs border-b-2 border-white text-white flex items-center justify-center gap-1";
+      }
+    }
+
+    // --- MODAL CONFIG & STATUS ---
+    function openConfigModal() {
+      document.getElementById('input-supabase-url').value = config.url || '';
+      document.getElementById('input-supabase-key').value = config.key || '';
+      document.getElementById('config-status-msg').classList.add('hidden');
+      document.getElementById('modal-config').classList.remove('hidden');
+    }
+
+    function closeConfigModal() {
+      document.getElementById('modal-config').classList.add('hidden');
+    }
+
+    async function handleSaveConfig(e) {
+      e.preventDefault();
+      const url = document.getElementById('input-supabase-url').value.trim();
+      const key = document.getElementById('input-supabase-key').value.trim();
+
+      config.url = url;
+      config.key = key;
+      localStorage.setItem('ternakku_sp_url', url);
+      localStorage.setItem('ternakku_sp_key', key);
+
+      initSupabase();
+      closeConfigModal();
+      showToast('Pengaturan Supabase disimpan!');
+    }
+
+    async function testConnection() {
+      const url = document.getElementById('input-supabase-url').value.trim();
+      const key = document.getElementById('input-supabase-key').value.trim();
+      const msg = document.getElementById('config-status-msg');
+
+      if (!url || !key) {
+        msg.className = "text-xs p-3 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 block";
+        msg.innerText = "Masukkan URL dan Anon Key terlebih dahulu.";
+        return;
+      }
+
+      msg.className = "text-xs p-3 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 block";
+      msg.innerText = "Menguji koneksi ke Supabase...";
+
+      try {
+        const testClient = window.supabase.createClient(url, key);
+        const { error } = await testClient.from('catatan_ayam').select('id').limit(1);
+        if (error) throw error;
+
+        msg.className = "text-xs p-3 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 block";
+        msg.innerText = "✅ Berhasil! Terhubung dengan database Supabase.";
+      } catch (err) {
+        msg.className = "text-xs p-3 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 block";
+        msg.innerText = "❌ Gagal: " + err.message + ". Pastikan Anda telah menjalankan script SQL schema terlebih dahulu.";
+      }
+    }
+
+    function updateStatusUI(isConnected, text) {
+      const ind = document.getElementById('status-indicator');
+      const txt = document.getElementById('status-text');
+      txt.innerText = text;
+
+      if (isConnected) {
+        ind.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 badge-pulse";
+      } else {
+        ind.className = "w-2.5 h-2.5 rounded-full bg-amber-400";
+      }
+    }
+
+    // --- TOAST NOTIFICATIONS ---
+    let toastTimeout = null;
+    function showToast(text) {
+      const toast = document.getElementById('realtime-toast');
+      document.getElementById('toast-message').innerText = text;
+      toast.classList.remove('hidden');
+
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 4000);
+    }
+
+    function hideToast() {
+      document.getElementById('realtime-toast').classList.add('hidden');
+    }
+
+    function copySqlSchema() {
+      navigator.clipboard.writeText(SQL_SCHEMA).then(() => {
+        showToast('SQL Schema berhasil disalin ke clipboard!');
+      });
+    }
+  </script>
+</body>
+</html>
