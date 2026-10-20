@@ -78,7 +78,11 @@ export default function App() {
         if (resAyam.error) throw resAyam.error;
         if (resIkan.error) throw resIkan.error;
 
-        setAyamList(resAyam.data || []);
+        const normalizedAyam: CatatanAyam[] = (resAyam.data || []).map((item) => ({
+          ...item,
+          jenis_ayam: item.jenis_ayam || 'Ayam Petelur',
+        }));
+        setAyamList(normalizedAyam);
         setIkanList(resIkan.data || []);
         setIsConnected(true);
         setIsRealtimeActive(true);
@@ -95,16 +99,24 @@ export default function App() {
             { event: '*', schema: 'public', table: 'catatan_ayam' },
             (payload) => {
               if (payload.eventType === 'INSERT') {
+                const rec = payload.new as CatatanAyam;
+                const normRec: CatatanAyam = {
+                  ...rec,
+                  jenis_ayam: rec.jenis_ayam || 'Ayam Petelur',
+                };
                 setAyamList((prev) => {
-                  if (prev.some((x) => x.id === (payload.new as CatatanAyam).id)) return prev;
-                  return [payload.new as CatatanAyam, ...prev];
+                  if (prev.some((x) => x.id === normRec.id)) return prev;
+                  return [normRec, ...prev];
                 });
                 triggerToast('⚡ Catatan ayam baru diterima secara real-time!');
               } else if (payload.eventType === 'UPDATE') {
+                const rec = payload.new as CatatanAyam;
+                const normRec: CatatanAyam = {
+                  ...rec,
+                  jenis_ayam: rec.jenis_ayam || 'Ayam Petelur',
+                };
                 setAyamList((prev) =>
-                  prev.map((x) =>
-                    x.id === (payload.new as CatatanAyam).id ? (payload.new as CatatanAyam) : x
-                  )
+                  prev.map((x) => (x.id === normRec.id ? normRec : x))
                 );
                 triggerToast('⚡ Catatan ayam diperbarui secara real-time!');
               } else if (payload.eventType === 'DELETE') {

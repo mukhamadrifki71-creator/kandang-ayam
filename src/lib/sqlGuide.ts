@@ -1,4 +1,4 @@
-export const SUPABASE_SQL_SCHEMA = `-- 1. Buat Tabel Catatan Ayam
+export const SUPABASE_SQL_SCHEMA = `-- 1. Buat Tabel Catatan Ayam (Simpel & Cepat)
 CREATE TABLE IF NOT EXISTS public.catatan_ayam (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
@@ -6,8 +6,13 @@ CREATE TABLE IF NOT EXISTS public.catatan_ayam (
   jumlah_ayam INTEGER NOT NULL CHECK (jumlah_ayam >= 0),
   pakan_kg NUMERIC(8, 2) NOT NULL CHECK (pakan_kg >= 0),
   jumlah_telur INTEGER NOT NULL CHECK (jumlah_telur >= 0),
+  jenis_ayam TEXT DEFAULT 'Ayam Petelur',
   catatan TEXT DEFAULT ''
 );
+
+-- JIKA TABEL SUDAH ADA SEBELUMNYA, TAMBAHKAN KOLOM JENIS_AYAM JIKA BELUM ADA:
+ALTER TABLE public.catatan_ayam 
+  ADD COLUMN IF NOT EXISTS jenis_ayam TEXT DEFAULT 'Ayam Petelur';
 
 -- 2. Buat Tabel Catatan Ikan
 CREATE TABLE IF NOT EXISTS public.catatan_ikan (
@@ -27,7 +32,6 @@ CREATE TABLE IF NOT EXISTS public.catatan_ikan (
 ALTER TABLE public.catatan_ayam ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.catatan_ikan ENABLE ROW LEVEL SECURITY;
 
--- Kebijakan akses penuh untuk pengguna website (Anon Key)
 CREATE POLICY "Akses Publik Penuh Catatan Ayam" 
   ON public.catatan_ayam 
   FOR ALL 
@@ -43,7 +47,6 @@ CREATE POLICY "Akses Publik Penuh Catatan Ikan"
   WITH CHECK (true);
 
 -- 4. PENTING: Aktifkan Real-Time Supabase (onpostgreschanges)
--- Menambahkan kedua tabel ke publication realtime agar perubahan langsung diteruskan ke web browser
 ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ayam;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;
 `;
@@ -51,22 +54,22 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;
 export const SUPABASE_STEPS = [
   {
     step: 1,
-    title: 'Buat Project di Supabase',
-    desc: 'Buka https://supabase.com, daftar/masuk gratis, lalu klik "New Project". Masukkan nama project (contoh: TernakKu) dan password database.',
+    title: 'Buka Supabase SQL Editor',
+    desc: 'Di menu sebelah kiri Supabase Dashboard, klik "SQL Editor", klik "New query".',
   },
   {
     step: 2,
-    title: 'Jalankan SQL Schema',
-    desc: 'Di menu sebelah kiri Supabase Dashboard, klik "SQL Editor", klik "New query", tempelkan script SQL di atas, lalu klik "Run".',
+    title: 'Jalankan Script SQL',
+    desc: 'Salin script SQL di atas dan tempel di editor query Supabase, lalu klik "Run".',
   },
   {
     step: 3,
-    title: 'Salin Project URL & Anon Key',
-    desc: 'Buka menu "Project Settings" (ikon gerigi) -> "API". Salin "Project URL" dan "anon public key".',
+    title: 'Ambil API Key',
+    desc: 'Buka Project Settings > Data API, salin Project URL dan anon public key Anda.',
   },
   {
     step: 4,
-    title: 'Hubungkan ke Website / GitHub Pages',
-    desc: 'Masukkan URL dan Anon Key pada menu Pengaturan di website ini atau masukkan langsung ke kode index.html sebelum deploy.',
+    title: 'Selesai & Real-Time Langsung Aktif',
+    desc: 'Masukkan URL & Key ke aplikasi ini. Data ayam dan ikan Anda akan tersimpan dan sinkron otomatis di semua HP dan komputer!',
   },
 ];

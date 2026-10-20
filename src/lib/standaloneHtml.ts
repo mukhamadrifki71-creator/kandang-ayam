@@ -205,26 +205,32 @@ export function generateStandaloneHtml(defaultUrl = '', defaultKey = ''): string
         <form id="form-ayam" onsubmit="handleSimpanAyam(event)" class="space-y-4">
           <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <div>
-              <label class="block text-xs font-bold text-slate-600 mb-1">Tanggal</label>
-              <input type="date" id="ayam-tanggal" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50/50" />
+              <label class="block text-xs font-bold text-slate-600 mb-1">Tanggal Catatan</label>
+              <input type="date" id="ayam-tanggal" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50/50" />
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-600 mb-1">Jumlah Ayam (Ekor)</label>
-              <input type="number" id="ayam-jumlah" min="0" placeholder="Contoh: 120" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+              <input type="number" id="ayam-jumlah" min="0" placeholder="Contoh: 120" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-600 mb-1">Pakan Harian (Kg)</label>
-              <input type="number" step="0.1" min="0" id="ayam-pakan" placeholder="Contoh: 15.5" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+              <input type="number" step="0.1" min="0" id="ayam-pakan" placeholder="Contoh: 15.0" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-600 mb-1">Jumlah Telur (Butir)</label>
-              <input type="number" min="0" id="ayam-telur" placeholder="Contoh: 98" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+              <input type="number" min="0" id="ayam-telur" placeholder="Contoh: 102" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
           </div>
 
-          <div>
-            <label class="block text-xs font-bold text-slate-600 mb-1">Catatan Tambahan (Opsional)</label>
-            <input type="text" id="ayam-catatan" placeholder="Contoh: Ayam sehat, nafsu makan tinggi, cuaca cerah..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Jenis / Ras Ayam (Opsional)</label>
+              <input type="text" id="ayam-jenis" value="Ayam Petelur" placeholder="Contoh: Ayam Petelur, Isa Brown, KUB" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Catatan Tambahan (Opsional)</label>
+              <input type="text" id="ayam-catatan" placeholder="Contoh: Ayam sehat, nafsu makan bagus..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
           </div>
 
           <div class="flex justify-end">
@@ -253,16 +259,18 @@ export function generateStandaloneHtml(defaultUrl = '', defaultKey = ''): string
             <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-semibold border-b border-slate-200">
               <tr>
                 <th class="px-4 py-3">Tanggal</th>
-                <th class="px-4 py-3">Jumlah Ayam</th>
-                <th class="px-4 py-3">Pakan (Kg)</th>
-                <th class="px-4 py-3">Telur (Butir)</th>
+                <th class="px-4 py-3">Jenis Ayam</th>
+                <th class="px-4 py-3 text-right">Populasi</th>
+                <th class="px-4 py-3 text-right">Pakan (Kg)</th>
+                <th class="px-4 py-3 text-right">Telur (Butir)</th>
+                <th class="px-4 py-3 text-right">Produktivitas</th>
                 <th class="px-4 py-3">Catatan</th>
-                <th class="px-4 py-3 text-right">Aksi</th>
+                <th class="px-4 py-3 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody id="ayam-table-body" class="divide-y divide-slate-100">
               <tr>
-                <td colspan="6" class="px-4 py-8 text-center text-slate-400 text-xs">Memuat data...</td>
+                <td colspan="8" class="px-4 py-8 text-center text-slate-400 text-xs">Memuat data...</td>
               </tr>
             </tbody>
           </table>
@@ -499,16 +507,27 @@ export function generateStandaloneHtml(defaultUrl = '', defaultKey = ''): string
   <!-- ==================== JAVASCRIPT LOGIC ==================== -->
   <script>
     // --- SQL SCHEMA CODE ---
-    const SQL_SCHEMA = \`-- 1. Buat Tabel Catatan Ayam
+    const SQL_SCHEMA = \`-- 1. Buat Tabel Catatan Ayam (dengan Fitur Tracking Siklus & Jenis Ayam)
 CREATE TABLE IF NOT EXISTS public.catatan_ayam (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
   tanggal DATE DEFAULT CURRENT_DATE NOT NULL,
+  nama_kandang TEXT DEFAULT 'Kandang A' NOT NULL,
+  jenis_ayam TEXT DEFAULT 'Isa Brown' NOT NULL,
+  tanggal_masuk DATE DEFAULT CURRENT_DATE NOT NULL,
+  tipe_masuk TEXT DEFAULT 'Pullet' NOT NULL,
   jumlah_ayam INTEGER NOT NULL CHECK (jumlah_ayam >= 0),
   pakan_kg NUMERIC(8, 2) NOT NULL CHECK (pakan_kg >= 0),
   jumlah_telur INTEGER NOT NULL CHECK (jumlah_telur >= 0),
   catatan TEXT DEFAULT ''
 );
+
+-- JIKA TABEL SUDAH ADA SEBELUMNYA, JALANKAN ALTER TABLE INI:
+ALTER TABLE public.catatan_ayam 
+  ADD COLUMN IF NOT EXISTS nama_kandang TEXT DEFAULT 'Kandang A',
+  ADD COLUMN IF NOT EXISTS jenis_ayam TEXT DEFAULT 'Isa Brown',
+  ADD COLUMN IF NOT EXISTS tanggal_masuk DATE DEFAULT CURRENT_DATE,
+  ADD COLUMN IF NOT EXISTS tipe_masuk TEXT DEFAULT 'Pullet';
 
 -- 2. Buat Tabel Catatan Ikan
 CREATE TABLE IF NOT EXISTS public.catatan_ikan (
@@ -547,8 +566,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
 
     // Default configuration (can be preset or loaded from localStorage)
     let config = {
-      url: localStorage.getItem('ternakku_sp_url') || '${defaultUrl}',
-      key: localStorage.getItem('ternakku_sp_key') || '${defaultKey}'
+      url: localStorage.getItem('ternakku_sp_url') || '\${defaultUrl}',
+      key: localStorage.getItem('ternakku_sp_key') || '\${defaultKey}'
     };
 
     // --- INITIALIZATION ---
@@ -556,6 +575,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
       // Set default date inputs to today
       const today = new Date().toISOString().slice(0, 10);
       document.getElementById('ayam-tanggal').value = today;
+      // Default tanggal masuk 60 hari lalu
+      const defaultMasuk = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+      document.getElementById('ayam-tanggal-masuk').value = defaultMasuk;
       // Jadwal kuras default 5 hari dari sekarang
       const nextDrain = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
       document.getElementById('ikan-jadwal-kuras').value = nextDrain;
@@ -723,6 +745,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
 
       const data = {
         tanggal: document.getElementById('ayam-tanggal').value,
+        jenis_ayam: (document.getElementById('ayam-jenis') && document.getElementById('ayam-jenis').value.trim()) || 'Ayam Petelur',
         jumlah_ayam: parseInt(document.getElementById('ayam-jumlah').value, 10) || 0,
         pakan_kg: parseFloat(document.getElementById('ayam-pakan').value) || 0,
         jumlah_telur: parseInt(document.getElementById('ayam-telur').value, 10) || 0,
@@ -933,20 +956,31 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
       }
       document.getElementById('ai-rekomendasi-list').innerHTML = recommendations.map(r => '<p>' + r + '</p>').join('');
 
-      tbody.innerHTML = ayamList.map(item => \`
-        <tr class="hover:bg-slate-50 transition">
-          <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">\${item.tanggal || '-'}</td>
-          <td class="px-4 py-3 text-slate-700 whitespace-nowrap"><span class="font-bold text-slate-900">\${item.jumlah_ayam}</span> ekor</td>
-          <td class="px-4 py-3 text-emerald-600 font-bold whitespace-nowrap">\${item.pakan_kg} kg</td>
-          <td class="px-4 py-3 text-amber-600 font-bold whitespace-nowrap">\${item.jumlah_telur} butir</td>
-          <td class="px-4 py-3 text-slate-500 text-xs max-w-xs truncate">\${item.catatan || '-'}</td>
-          <td class="px-4 py-3 text-right whitespace-nowrap">
-            <button onclick="hapusAyam('\${item.id}')" class="text-xs font-semibold text-rose-500 hover:text-rose-700 px-2 py-1 rounded hover:bg-rose-50 transition">
-              Hapus
-            </button>
-          </td>
-        </tr>
-      \`).join('');
+      tbody.innerHTML = ayamList.map(item => {
+        const rasio = item.jumlah_ayam > 0 ? Math.round((item.jumlah_telur / item.jumlah_ayam) * 100) : 0;
+        return \`
+          <tr class="hover:bg-slate-50 transition">
+            <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">\\\${item.tanggal || '-'}</td>
+            <td class="px-4 py-3 whitespace-nowrap">
+              <span class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold">\\\${item.jenis_ayam || 'Ayam Petelur'}</span>
+            </td>
+            <td class="px-4 py-3 text-right text-slate-700 whitespace-nowrap"><span class="font-bold text-slate-900">\\\${item.jumlah_ayam}</span> ekor</td>
+            <td class="px-4 py-3 text-right text-emerald-600 font-bold whitespace-nowrap">\\\${item.pakan_kg} kg</td>
+            <td class="px-4 py-3 text-right text-amber-600 font-bold whitespace-nowrap">\\\${item.jumlah_telur} butir</td>
+            <td class="px-4 py-3 text-right whitespace-nowrap">
+              <span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full border \\\${rasio >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : rasio >= 65 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-700 border-rose-200'}">
+                \\\${rasio}%
+              </span>
+            </td>
+            <td class="px-4 py-3 text-slate-500 text-xs max-w-xs truncate">\\\${item.catatan || '-'}</td>
+            <td class="px-4 py-3 text-center whitespace-nowrap">
+              <button onclick="hapusAyam('\\\\\\\${item.id}')" class="text-xs font-semibold text-rose-500 hover:text-rose-700 px-2 py-1 rounded hover:bg-rose-50 transition">
+                Hapus
+              </button>
+            </td>
+          </tr>
+        \`;
+      }).join('');
     }
 
     function renderIkan() {

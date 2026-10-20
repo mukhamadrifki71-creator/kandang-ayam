@@ -5,6 +5,8 @@ export interface CatatanAyam {
   jumlah_ayam: number;
   pakan_kg: number;
   jumlah_telur: number;
+  jenis_ayam?: string; // opsional, contoh: 'Ayam Petelur', 'Isa Brown'
+  nama_kandang?: string; // opsional backwards compatibility
   catatan?: string;
 }
 
@@ -17,7 +19,7 @@ export interface CatatanIkan {
   jumlah_ikan: number;
   pakan_kg: number;
   jadwal_kuras: string; // YYYY-MM-DD
-  status_air?: string; // 'Bersih' | 'Cukup' | 'Perlu Kuras' | 'Selesai Kuras'
+  status_air?: string; // 'Bersih' | 'Cukup' | 'Perlu Kuras'
   catatan?: string;
 }
 
@@ -30,15 +32,9 @@ export interface AyamAiAnalysis {
   skor_kesehatan: number;
   status_kesehatan: string;
   prediksi_telur_besok: number;
-  prediksi_tren_7hari: string;
+  prediksi_tren: string;
   evaluasi_pakan: string;
-  peringatan_anomali: string[];
-  rekomendasi_tindakan: {
-    kategori: string;
-    saran: string;
-    prioritas: string;
-  }[];
-  catatan_ahli: string;
-  generated_at?: string;
+  gram_per_ekor: number;
+  peringatan: string[];
+  saran_praktis: string[];
 }
-

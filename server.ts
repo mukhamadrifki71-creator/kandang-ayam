@@ -43,13 +43,16 @@ ${JSON.stringify(history.slice(0, 14), null, 2)}
 Pertanyaan Khusus Peternak (jika ada):
 ${question ? question : 'Tidak ada pertanyaan khusus, berikan analisis performa menyeluruh.'}
 
-Pedoman Peternakan Ayam Petelur (Layer):
-- Standar konsumsi pakan ayam petelur dewasa biasanya ~110 - 125 gram/ekor/hari.
-- Hen-Day Production (HDP) / rasio telur:
-  * >85%: Sangat Baik (Puncak Produksi)
-  * 70-85%: Baik / Normal
-  * <65%: Perlu evaluasi nutrisi/kesehatan/lingkungan
-- Penurunan produksi mendadak (>5-10% dlm 2-3 hari) adalah indikator stres, penyakit (seperti ND, IB, AI, Coryza), kualitas pakan berjamur, atau kekurangan air minum.
+Pedoman Peternakan & Siklus Umur Ayam:
+- Perhatikan "jenis_ayam" (contoh: Isa Brown, Lohmann Brown, Hy-Line Brown, Ayam KUB, dll.) dan "tanggal_masuk" kandang.
+- Pullet masuk umumnya berumur 16 minggu (112 hari).
+- Kurva Siklus Umur Ayam Petelur (Layer Curve):
+  * Umur < 18 minggu: Fase Pullet (Belum bertelur)
+  * Umur 18 - 24 minggu: Fase Awal Bertelur (Mulai naik 10% - 75%)
+  * Umur 25 - 42 minggu: Puncak Produksi / Peak Phase (Standar ras komersial: 88 - 95%; Ayam KUB: 55 - 70%)
+  * Umur 43 - 72 minggu: Fase Produksi Stabil (Turun bertahap 0.5%/minggu hingga 75-80%)
+  * Umur > 72 minggu: Persiapan Afkir atau Molting
+- Standar pakan: ~110 - 125 gram/ekor/hari untuk layer komersial; ~85 - 100 gram untuk ayam kampung/KUB.
 
 Berikan output JSON terstruktur yang akurat, realistis, dan berorientasi pada solusi praktis bagi peternak rakyat.
 `;
@@ -59,7 +62,7 @@ Berikan output JSON terstruktur yang akurat, realistis, dan berorientasi pada so
       contents: promptText,
       config: {
         systemInstruction:
-          'Anda adalah asisten pakar peternakan ayam petelur cerdas berbahasa Indonesia. Berikan estimasi prediksi matematis yang masuk akal dan saran yang bisa langsung diaplikasikan peternak.',
+          'Anda adalah asisten pakar peternakan ayam petelur cerdas berbahasa Indonesia. Analisis performa berdasarkan jenis ras ayam dan umur minggu siklus bertelurnya.',
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
@@ -84,6 +87,10 @@ Berikan output JSON terstruktur yang akurat, realistis, dan berorientasi pada so
               type: Type.STRING,
               description: 'Analisis kecukupan gram pakan per ekor per hari dibanding standar',
             },
+            evaluasi_siklus: {
+              type: Type.STRING,
+              description: 'Analisis kesesuaian produksi telur dengan umur minggu siklus dan jenis ras ayam',
+            },
             peringatan_anomali: {
               type: Type.ARRAY,
               items: { type: Type.STRING },
@@ -94,7 +101,7 @@ Berikan output JSON terstruktur yang akurat, realistis, dan berorientasi pada so
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  kategori: { type: Type.STRING, description: 'Nutrisi / Kandang / Pencegahan / Air' },
+                  kategori: { type: Type.STRING, description: 'Nutrisi / Kandang / Pencegahan / Air / Siklus' },
                   saran: { type: Type.STRING, description: 'Saran tindakan praktis' },
                   prioritas: { type: Type.STRING, description: 'Tinggi / Sedang / Rutin' },
                 },
@@ -104,7 +111,7 @@ Berikan output JSON terstruktur yang akurat, realistis, dan berorientasi pada so
             },
             catatan_ahli: {
               type: Type.STRING,
-              description: 'Penjelasan naratif ramah untuk peternak',
+              description: 'Penjelasan naratif ramah untuk peternak mencakup evaluasi siklus',
             },
           },
           required: [
@@ -113,6 +120,7 @@ Berikan output JSON terstruktur yang akurat, realistis, dan berorientasi pada so
             'prediksi_telur_besok',
             'prediksi_tren_7hari',
             'evaluasi_pakan',
+            'evaluasi_siklus',
             'peringatan_anomali',
             'rekomendasi_tindakan',
             'catatan_ahli',
