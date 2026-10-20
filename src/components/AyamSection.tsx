@@ -8,7 +8,8 @@ import {
   Utensils,
   Users,
   TrendingUp,
-  Tag,
+  X,
+  AlertTriangle,
 } from 'lucide-react';
 import { AyamSmartAdvisor } from './AyamSmartAdvisor';
 
@@ -27,15 +28,17 @@ export const AyamSection: React.FC<Props> = ({
 }) => {
   const todayStr = new Date().toISOString().slice(0, 10);
 
-  // Form states - sederhana & mudah diisi
+  // Form states
   const [tanggal, setTanggal] = useState(todayStr);
   const [jumlahAyam, setJumlahAyam] = useState<string>('120');
   const [pakanKg, setPakanKg] = useState<string>('15');
   const [jumlahTelur, setJumlahTelur] = useState<string>('102');
-  const [jenisAyam, setJenisAyam] = useState<string>('Ayam Petelur');
   const [catatan, setCatatan] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // State dialog konfirmasi hapus (tidak menggunakan window.confirm yang sering diblokir iframe)
+  const [itemToDelete, setItemToDelete] = useState<CatatanAyam | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Perhitungan statistik utama
   const latestRecord = ayamList.length > 0 ? ayamList[0] : null;
@@ -57,7 +60,6 @@ export const AyamSection: React.FC<Props> = ({
         jumlah_ayam: parseInt(jumlahAyam, 10) || 0,
         pakan_kg: parseFloat(pakanKg) || 0,
         jumlah_telur: parseInt(jumlahTelur, 10) || 0,
-        jenis_ayam: jenisAyam.trim() || 'Ayam Petelur',
         catatan: catatan.trim(),
       });
       setCatatan('');
@@ -66,14 +68,17 @@ export const AyamSection: React.FC<Props> = ({
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Hapus catatan ayam ini?')) {
-      try {
-        setDeletingId(id);
-        await onDelete(id);
-      } finally {
-        setDeletingId(null);
-      }
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+    const targetId = itemToDelete.id;
+    setItemToDelete(null);
+    try {
+      setIsDeleting(true);
+      await onDelete(targetId);
+    } catch (err) {
+      console.error('Gagal menghapus catatan ayam:', err);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -152,15 +157,13 @@ export const AyamSection: React.FC<Props> = ({
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Tanggal Catatan
               </label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={tanggal}
-                  onChange={(e) => setTanggal(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                />
-              </div>
+              <input
+                type="date"
+                value={tanggal}
+                onChange={(e) => setTanggal(e.target.value)}
+                required
+                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+              />
             </div>
 
             <div>
@@ -210,46 +213,17 @@ export const AyamSection: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Jenis / Ras Ayam (Opsional)
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={jenisAyam}
-                  onChange={(e) => setJenisAyam(e.target.value)}
-                  placeholder="Contoh: Ayam Petelur, Isa Brown, KUB"
-                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                />
-              </div>
-              <div className="flex flex-wrap gap-1 mt-1.5">
-                {['Ayam Petelur', 'Isa Brown', 'Lohmann', 'Ayam KUB'].map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setJenisAyam(opt)}
-                    className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 transition border border-slate-200"
-                  >
-                    + {opt}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Catatan Tambahan (Opsional)
-              </label>
-              <input
-                type="text"
-                value={catatan}
-                onChange={(e) => setCatatan(e.target.value)}
-                placeholder="Contoh: Cuaca cerah, nafsu makan bagus..."
-                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Catatan Tambahan (Opsional)
+            </label>
+            <input
+              type="text"
+              value={catatan}
+              onChange={(e) => setCatatan(e.target.value)}
+              placeholder="Contoh: Cuaca cerah, nafsu makan bagus, vaksin berkala..."
+              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+            />
           </div>
 
           <div className="flex justify-end pt-2">
@@ -300,7 +274,6 @@ export const AyamSection: React.FC<Props> = ({
                 <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
                   <tr>
                     <th className="py-3 px-4">Tanggal</th>
-                    <th className="py-3 px-4">Jenis Ayam</th>
                     <th className="py-3 px-4 text-right">Populasi</th>
                     <th className="py-3 px-4 text-right">Pakan (Kg)</th>
                     <th className="py-3 px-4 text-right">Pakan/Ekor</th>
@@ -322,11 +295,6 @@ export const AyamSection: React.FC<Props> = ({
                       <tr key={item.id} className="hover:bg-slate-50 transition">
                         <td className="py-3 px-4 font-bold text-slate-800 whitespace-nowrap">
                           {item.tanggal}
-                        </td>
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-semibold">
-                            {item.jenis_ayam || 'Ayam Petelur'}
-                          </span>
                         </td>
                         <td className="py-3 px-4 text-right font-semibold text-slate-800">
                           {pop} ekor
@@ -359,8 +327,7 @@ export const AyamSection: React.FC<Props> = ({
                         <td className="py-3 px-4 text-center">
                           <button
                             type="button"
-                            onClick={() => handleDelete(item.id)}
-                            disabled={deletingId === item.id}
+                            onClick={() => setItemToDelete(item)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                             title="Hapus Catatan"
                           >
@@ -386,17 +353,12 @@ export const AyamSection: React.FC<Props> = ({
                 return (
                   <div key={item.id} className="p-4 space-y-2">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-slate-800">{item.tanggal}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 font-semibold text-slate-600">
-                          {item.jenis_ayam || 'Ayam Petelur'}
-                        </span>
-                      </div>
+                      <span className="font-bold text-sm text-slate-800">{item.tanggal}</span>
                       <button
                         type="button"
-                        onClick={() => handleDelete(item.id)}
-                        disabled={deletingId === item.id}
-                        className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                        onClick={() => setItemToDelete(item)}
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+                        title="Hapus Catatan"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -433,6 +395,57 @@ export const AyamSection: React.FC<Props> = ({
           </div>
         )}
       </div>
+
+      {/* MODAL DIALOG KONFIRMASI HAPUS (BEBAS DARI BLOKIR IFRAME) */}
+      {itemToDelete && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-800">Hapus Catatan Ayam?</h3>
+                  <p className="text-[11px] text-slate-500">Tindakan ini tidak dapat dibatalkan</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setItemToDelete(null)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="my-3.5 bg-slate-50 p-3 rounded-xl border border-slate-200/80 text-xs text-slate-600 space-y-1">
+              <p><span className="font-bold text-slate-700">Tanggal:</span> {itemToDelete.tanggal}</p>
+              <p><span className="font-bold text-slate-700">Populasi:</span> {itemToDelete.jumlah_ayam} ekor | <span className="font-bold text-slate-700">Telur:</span> {itemToDelete.jumlah_telur} butir</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setItemToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs font-semibold rounded-xl text-slate-600 hover:bg-slate-100 transition"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white transition shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? 'Menghapus...' : 'Ya, Hapus'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -754,12 +754,20 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
 
       if (supabase) {
         try {
-          const { error } = await supabase.from('catatan_ayam').insert([data]);
-          if (error) throw error;
+          let res = await supabase.from('catatan_ayam').insert([data]);
+          if (res.error && (res.error.code === 'PGRST204' || (res.error.message && res.error.message.includes('jenis_ayam')))) {
+            const fallback = { ...data };
+            delete fallback.jenis_ayam;
+            if (data.jenis_ayam && data.jenis_ayam !== 'Ayam Petelur') {
+              fallback.catatan = ('[' + data.jenis_ayam + '] ' + (fallback.catatan || '')).trim();
+            }
+            res = await supabase.from('catatan_ayam').insert([fallback]);
+          }
+          if (res.error) throw res.error;
           resetAyamForm();
-          // Real-time listener will automatically update UI, but fallback refresh just in case
+          showToast('Catatan ayam tersimpan ke Supabase!');
         } catch (err) {
-          alert('Gagal menyimpan ke Supabase: ' + err.message);
+          showToast('Gagal menyimpan ke Supabase: ' + err.message);
         }
       } else {
         // Simpan ke local storage
@@ -801,11 +809,17 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
 
       if (supabase) {
         try {
-          const { error } = await supabase.from('catatan_ikan').insert([data]);
-          if (error) throw error;
+          let res = await supabase.from('catatan_ikan').insert([data]);
+          if (res.error && res.error.code === 'PGRST204' && res.error.message.includes('status_air')) {
+            const fallback = { ...data };
+            delete fallback.status_air;
+            res = await supabase.from('catatan_ikan').insert([fallback]);
+          }
+          if (res.error) throw res.error;
           resetIkanForm();
+          showToast('Catatan kolam tersimpan ke Supabase!');
         } catch (err) {
-          alert('Gagal menyimpan ke Supabase: ' + err.message);
+          showToast('Gagal menyimpan kolam: ' + err.message);
         }
       } else {
         data.id = 'demo-' + Date.now();
@@ -829,28 +843,58 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
     }
 
     async function hapusAyam(id) {
-      if (!confirm('Hapus catatan ayam ini?')) return;
-      if (supabase) {
-        const { error } = await supabase.from('catatan_ayam').delete().eq('id', id);
-        if (error) alert('Gagal menghapus: ' + error.message);
-      } else {
-        ayamList = ayamList.filter(item => item.id !== id);
-        localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
-        renderAyam();
-        showToast('Catatan berhasil dihapus!');
+      const previous = [...ayamList];
+      ayamList = ayamList.filter(item => item.id !== id);
+      localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
+      renderAyam();
+      showToast('Catatan ayam berhasil dihapus!');
+
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      if (supabase && isUUID) {
+        try {
+          const { error } = await supabase.from('catatan_ayam').delete().eq('id', id);
+          if (error) {
+            console.error('Error delete from Supabase:', error);
+            ayamList = previous;
+            localStorage.setItem('demo_ayam', JSON.stringify(previous));
+            renderAyam();
+            showToast('Gagal menghapus dari Supabase: ' + error.message);
+          }
+        } catch (err) {
+          console.error(err);
+          ayamList = previous;
+          localStorage.setItem('demo_ayam', JSON.stringify(previous));
+          renderAyam();
+          showToast('Terjadi kesalahan saat menghapus data.');
+        }
       }
     }
 
     async function hapusIkan(id) {
-      if (!confirm('Hapus catatan kolam ikan ini?')) return;
-      if (supabase) {
-        const { error } = await supabase.from('catatan_ikan').delete().eq('id', id);
-        if (error) alert('Gagal menghapus: ' + error.message);
-      } else {
-        ikanList = ikanList.filter(item => item.id !== id);
-        localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
-        renderIkan();
-        showToast('Catatan kolam berhasil dihapus!');
+      const previous = [...ikanList];
+      ikanList = ikanList.filter(item => item.id !== id);
+      localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
+      renderIkan();
+      showToast('Data kolam ikan berhasil dihapus!');
+
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      if (supabase && isUUID) {
+        try {
+          const { error } = await supabase.from('catatan_ikan').delete().eq('id', id);
+          if (error) {
+            console.error('Error delete kolam from Supabase:', error);
+            ikanList = previous;
+            localStorage.setItem('demo_ikan', JSON.stringify(previous));
+            renderIkan();
+            showToast('Gagal menghapus kolam: ' + error.message);
+          }
+        } catch (err) {
+          console.error(err);
+          ikanList = previous;
+          localStorage.setItem('demo_ikan', JSON.stringify(previous));
+          renderIkan();
+          showToast('Terjadi kesalahan saat menghapus kolam.');
+        }
       }
     }
 

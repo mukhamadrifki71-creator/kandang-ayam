@@ -53,6 +53,10 @@ export default function App() {
     }, 4500);
   };
 
+  // UUID validator to avoid invalid input syntax for type uuid when deleting local/demo records
+  const isUUID = (str: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
   // Channel ref for Supabase
   const channelRef = useRef<RealtimeChannel | null>(null);
 
@@ -78,11 +82,7 @@ export default function App() {
         if (resAyam.error) throw resAyam.error;
         if (resIkan.error) throw resIkan.error;
 
-        const normalizedAyam: CatatanAyam[] = (resAyam.data || []).map((item) => ({
-          ...item,
-          jenis_ayam: item.jenis_ayam || 'Ayam Petelur',
-        }));
-        setAyamList(normalizedAyam);
+        setAyamList(resAyam.data || []);
         setIkanList(resIkan.data || []);
         setIsConnected(true);
         setIsRealtimeActive(true);
@@ -192,16 +192,37 @@ export default function App() {
     );
   };
 
-  // Add Ayam Record
+  // Add Ayam Record (Sends standard table columns only to avoid PGRST204)
   const handleAddAyam = async (record: Omit<CatatanAyam, 'id' | 'created_at'>) => {
     const client = getSupabaseClient(config);
 
     if (client && isConnected) {
-      const { error } = await client.from('catatan_ayam').insert([record]);
+      const insertPayload = {
+        tanggal: record.tanggal,
+        jumlah_ayam: record.jumlah_ayam,
+        pakan_kg: record.pakan_kg,
+        jumlah_telur: record.jumlah_telur,
+        catatan: record.catatan || '',
+      };
+
+      const { data, error } = await client.from('catatan_ayam').insert([insertPayload]).select();
+
       if (error) {
-        alert('Gagal menyimpan ke Supabase: ' + error.message);
+        triggerToast('Gagal menyimpan ke Supabase: ' + error.message);
         throw error;
       }
+
+      const insertedItem = data && data[0] ? data[0] : null;
+      const newItem: CatatanAyam = {
+        ...(insertedItem || record),
+        id: insertedItem?.id || 'ayam-' + Date.now(),
+        created_at: insertedItem?.created_at || new Date().toISOString(),
+      };
+      setAyamList((prev) => {
+        if (prev.some((x) => x.id === newItem.id)) return prev;
+        return [newItem, ...prev];
+      });
+
       triggerToast('Catatan ayam berhasil disimpan ke Supabase!');
     } else {
       // Local demo mode
@@ -217,34 +238,58 @@ export default function App() {
     }
   };
 
-  // Delete Ayam Record
+  // Delete Ayam Record (Optimistic UI Update with UUID check to prevent UUID cast errors)
   const handleDeleteAyam = async (id: string) => {
-    const client = getSupabaseClient(config);
+    const previous = [...ayamList];
+    const updated = ayamList.filter((item) => item.id !== id);
+    setAyamList(updated);
+    saveLocalAyam(updated);
+    triggerToast('Catatan ayam berhasil dihapus.');
 
-    if (client && isConnected) {
-      const { error } = await client.from('catatan_ayam').delete().eq('id', id);
-      if (error) {
-        alert('Gagal menghapus dari Supabase: ' + error.message);
-        throw error;
+    const client = getSupabaseClient(config);
+    // Only attempt remote delete in Supabase if the ID is a valid database UUID
+    if (client && isConnected && isUUID(id)) {
+      try {
+        const { error } = await client.from('catatan_ayam').delete().eq('id', id);
+        if (error) {
+          console.error('Error delete catatan_ayam from Supabase:', error);
+          setAyamList(previous);
+          saveLocalAyam(previous);
+          triggerToast('Gagal menghapus dari Supabase: ' + error.message);
+        }
+      } catch (err: unknown) {
+        console.error('Error delete catatan_ayam:', err);
+        setAyamList(previous);
+        saveLocalAyam(previous);
+        triggerToast('Terjadi kesalahan saat menghapus di database.');
       }
-    } else {
-      const updated = ayamList.filter((item) => item.id !== id);
-      setAyamList(updated);
-      saveLocalAyam(updated);
-      triggerToast('Catatan ayam dihapus.');
     }
   };
 
-  // Add Ikan Record
+  // Add Ikan Record (Resilient against schema variations)
   const handleAddIkan = async (record: Omit<CatatanIkan, 'id' | 'created_at'>) => {
     const client = getSupabaseClient(config);
 
     if (client && isConnected) {
-      const { error } = await client.from('catatan_ikan').insert([record]);
-      if (error) {
-        alert('Gagal menyimpan kolam ke Supabase: ' + error.message);
-        throw error;
+      let res = await client.from('catatan_ikan').insert([record]).select();
+      if (res.error && res.error.code === 'PGRST204' && res.error.message?.includes('status_air')) {
+        const { status_air, ...rest } = record;
+        res = await client.from('catatan_ikan').insert([rest]).select();
       }
+      if (res.error) {
+        triggerToast('Gagal menyimpan kolam ke Supabase: ' + res.error.message);
+        throw res.error;
+      }
+      const insertedItem = res.data && res.data[0] ? res.data[0] : null;
+      const newItem: CatatanIkan = {
+        ...(insertedItem || record),
+        id: insertedItem?.id || 'ikan-' + Date.now(),
+        created_at: insertedItem?.created_at || new Date().toISOString(),
+      };
+      setIkanList((prev) => {
+        if (prev.some((x) => x.id === newItem.id)) return prev;
+        return [newItem, ...prev];
+      });
       triggerToast('Data kolam ikan berhasil disimpan ke Supabase!');
     } else {
       const newItem: CatatanIkan = {
@@ -259,21 +304,30 @@ export default function App() {
     }
   };
 
-  // Delete Ikan Record
+  // Delete Ikan Record (Optimistic UI Update with UUID check)
   const handleDeleteIkan = async (id: string) => {
-    const client = getSupabaseClient(config);
+    const previous = [...ikanList];
+    const updated = ikanList.filter((item) => item.id !== id);
+    setIkanList(updated);
+    saveLocalIkan(updated);
+    triggerToast('Data kolam ikan berhasil dihapus.');
 
-    if (client && isConnected) {
-      const { error } = await client.from('catatan_ikan').delete().eq('id', id);
-      if (error) {
-        alert('Gagal menghapus kolam: ' + error.message);
-        throw error;
+    const client = getSupabaseClient(config);
+    if (client && isConnected && isUUID(id)) {
+      try {
+        const { error } = await client.from('catatan_ikan').delete().eq('id', id);
+        if (error) {
+          console.error('Error delete catatan_ikan from Supabase:', error);
+          setIkanList(previous);
+          saveLocalIkan(previous);
+          triggerToast('Gagal menghapus kolam dari Supabase: ' + error.message);
+        }
+      } catch (err: unknown) {
+        console.error('Error delete catatan_ikan:', err);
+        setIkanList(previous);
+        saveLocalIkan(previous);
+        triggerToast('Terjadi kesalahan saat menghapus kolam di database.');
       }
-    } else {
-      const updated = ikanList.filter((item) => item.id !== id);
-      setIkanList(updated);
-      saveLocalIkan(updated);
-      triggerToast('Data kolam dihapus.');
     }
   };
 

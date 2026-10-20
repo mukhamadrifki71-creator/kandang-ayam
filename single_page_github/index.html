@@ -221,15 +221,9 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-600 mb-1">Jenis / Ras Ayam (Opsional)</label>
-              <input type="text" id="ayam-jenis" value="Ayam Petelur" placeholder="Contoh: Ayam Petelur, Isa Brown, KUB" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-600 mb-1">Catatan Tambahan (Opsional)</label>
-              <input type="text" id="ayam-catatan" placeholder="Contoh: Ayam sehat, nafsu makan bagus..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Catatan Tambahan (Opsional)</label>
+            <input type="text" id="ayam-catatan" placeholder="Contoh: Ayam sehat, nafsu makan bagus, cuaca cerah..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
 
           <div class="flex justify-end">
@@ -258,7 +252,6 @@
             <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-semibold border-b border-slate-200">
               <tr>
                 <th class="px-4 py-3">Tanggal</th>
-                <th class="px-4 py-3">Jenis Ayam</th>
                 <th class="px-4 py-3 text-right">Populasi</th>
                 <th class="px-4 py-3 text-right">Pakan (Kg)</th>
                 <th class="px-4 py-3 text-right">Telur (Butir)</th>
@@ -743,7 +736,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
 
       const data = {
         tanggal: document.getElementById('ayam-tanggal').value,
-        jenis_ayam: (document.getElementById('ayam-jenis') && document.getElementById('ayam-jenis').value.trim()) || 'Ayam Petelur',
         jumlah_ayam: parseInt(document.getElementById('ayam-jumlah').value, 10) || 0,
         pakan_kg: parseFloat(document.getElementById('ayam-pakan').value) || 0,
         jumlah_telur: parseInt(document.getElementById('ayam-telur').value, 10) || 0,
@@ -755,8 +747,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
           const { error } = await supabase.from('catatan_ayam').insert([data]);
           if (error) throw error;
           resetAyamForm();
+          showToast('Catatan ayam tersimpan ke Supabase!');
         } catch (err) {
-          alert('Gagal menyimpan ke Supabase: ' + err.message);
+          showToast('Gagal menyimpan ke Supabase: ' + err.message);
         }
       } else {
         data.id = 'demo-' + Date.now();
@@ -825,28 +818,58 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
     }
 
     async function hapusAyam(id) {
-      if (!confirm('Hapus catatan ayam ini?')) return;
-      if (supabase) {
-        const { error } = await supabase.from('catatan_ayam').delete().eq('id', id);
-        if (error) alert('Gagal menghapus: ' + error.message);
-      } else {
-        ayamList = ayamList.filter(item => item.id !== id);
-        localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
-        renderAyam();
-        showToast('Catatan berhasil dihapus!');
+      const previous = [...ayamList];
+      ayamList = ayamList.filter(item => item.id !== id);
+      localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
+      renderAyam();
+      showToast('Catatan ayam berhasil dihapus!');
+
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      if (supabase && isUUID) {
+        try {
+          const { error } = await supabase.from('catatan_ayam').delete().eq('id', id);
+          if (error) {
+            console.error('Error delete from Supabase:', error);
+            ayamList = previous;
+            localStorage.setItem('demo_ayam', JSON.stringify(previous));
+            renderAyam();
+            showToast('Gagal menghapus dari Supabase: ' + error.message);
+          }
+        } catch (err) {
+          console.error(err);
+          ayamList = previous;
+          localStorage.setItem('demo_ayam', JSON.stringify(previous));
+          renderAyam();
+          showToast('Terjadi kesalahan saat menghapus data.');
+        }
       }
     }
 
     async function hapusIkan(id) {
-      if (!confirm('Hapus catatan kolam ikan ini?')) return;
-      if (supabase) {
-        const { error } = await supabase.from('catatan_ikan').delete().eq('id', id);
-        if (error) alert('Gagal menghapus: ' + error.message);
-      } else {
-        ikanList = ikanList.filter(item => item.id !== id);
-        localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
-        renderIkan();
-        showToast('Catatan kolam berhasil dihapus!');
+      const previous = [...ikanList];
+      ikanList = ikanList.filter(item => item.id !== id);
+      localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
+      renderIkan();
+      showToast('Data kolam ikan berhasil dihapus!');
+
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      if (supabase && isUUID) {
+        try {
+          const { error } = await supabase.from('catatan_ikan').delete().eq('id', id);
+          if (error) {
+            console.error('Error delete kolam from Supabase:', error);
+            ikanList = previous;
+            localStorage.setItem('demo_ikan', JSON.stringify(previous));
+            renderIkan();
+            showToast('Gagal menghapus kolam: ' + error.message);
+          }
+        } catch (err) {
+          console.error(err);
+          ikanList = previous;
+          localStorage.setItem('demo_ikan', JSON.stringify(previous));
+          renderIkan();
+          showToast('Terjadi kesalahan saat menghapus kolam.');
+        }
       }
     }
 
@@ -956,9 +979,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
         return `
           <tr class="hover:bg-slate-50 transition">
             <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">\${item.tanggal || '-'}</td>
-            <td class="px-4 py-3 whitespace-nowrap">
-              <span class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold">\${item.jenis_ayam || 'Ayam Petelur'}</span>
-            </td>
             <td class="px-4 py-3 text-right text-slate-700 whitespace-nowrap"><span class="font-bold text-slate-900">\${item.jumlah_ayam}</span> ekor</td>
             <td class="px-4 py-3 text-right text-emerald-600 font-bold whitespace-nowrap">\${item.pakan_kg} kg</td>
             <td class="px-4 py-3 text-right text-amber-600 font-bold whitespace-nowrap">\${item.jumlah_telur} butir</td>
