@@ -74,19 +74,13 @@ export const ExportModal: React.FC<Props> = ({ isOpen, onClose, config }) => {
             </h4>
             <ol className="text-xs text-slate-600 space-y-2 list-decimal list-inside leading-relaxed">
               <li>
-                Download file <strong>index.html</strong> menggunakan tombol di bawah.
+                <strong>Jika Anda push seluruh kode repo:</strong> Masuk ke tab <strong>Settings</strong> &rarr; <strong>Pages</strong> &rarr; pilih Branch: <strong>main</strong> dan folder: <strong>/docs</strong> &rarr; klik <strong>Save</strong>.
               </li>
               <li>
-                Buka <a href="https://github.com/new" target="_blank" rel="noreferrer" className="text-emerald-600 underline font-semibold">GitHub</a>, buat repository baru (contoh: <code>ternakku</code>) dengan opsi <strong>Public</strong>.
+                <strong>Jika ingin upload 1 file mandiri saja:</strong> Download file <code>index.html</code> di bawah, buka repo GitHub Anda &rarr; klik <strong>Upload files</strong> &rarr; drag file ini &rarr; commit &rarr; di <strong>Settings &gt; Pages</strong> pilih folder <strong>/(root)</strong>.
               </li>
               <li>
-                Klik <strong>Upload files</strong>, pilih/drag file <code>index.html</code>, lalu klik <strong>Commit changes</strong>.
-              </li>
-              <li>
-                Masuk ke tab <strong>Settings</strong> &rarr; menu <strong>Pages</strong> (di sidebar kiri) &rarr; di bagian <em>Build and deployment</em> pilih Branch: <strong>main</strong> & folder: <strong>/(root)</strong> &rarr; klik <strong>Save</strong>.
-              </li>
-              <li>
-                Tunggu 1 menit, website Anda sudah aktif di: <code className="bg-slate-200/80 px-1 py-0.5 rounded text-slate-800 font-mono">https://username.github.io/ternakku/</code> !
+                Tunggu 1-2 menit, website Anda langsung aktif di: <code className="bg-slate-200/80 px-1 py-0.5 rounded text-slate-800 font-mono">https://username.github.io/nama-repo/</code>!
               </li>
             </ol>
           </div>

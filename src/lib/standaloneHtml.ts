@@ -844,13 +844,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
 
     async function hapusAyam(id) {
       const previous = [...ayamList];
-      ayamList = ayamList.filter(item => item.id !== id);
+      ayamList = ayamList.filter(item => String(item.id) !== String(id));
       localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
       renderAyam();
       showToast('Catatan ayam berhasil dihapus!');
 
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-      if (supabase && isUUID) {
+      const isLocalOnly = typeof id === 'string' && (id.startsWith('ayam-') || id.startsWith('demo-'));
+      if (supabase && !isLocalOnly) {
         try {
           const { error } = await supabase.from('catatan_ayam').delete().eq('id', id);
           if (error) {
@@ -872,13 +872,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
 
     async function hapusIkan(id) {
       const previous = [...ikanList];
-      ikanList = ikanList.filter(item => item.id !== id);
+      ikanList = ikanList.filter(item => String(item.id) !== String(id));
       localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
       renderIkan();
       showToast('Data kolam ikan berhasil dihapus!');
 
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-      if (supabase && isUUID) {
+      const isLocalOnly = typeof id === 'string' && (id.startsWith('ikan-') || id.startsWith('demo-'));
+      if (supabase && !isLocalOnly) {
         try {
           const { error } = await supabase.from('catatan_ikan').delete().eq('id', id);
           if (error) {
@@ -1004,21 +1004,18 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
         const rasio = item.jumlah_ayam > 0 ? Math.round((item.jumlah_telur / item.jumlah_ayam) * 100) : 0;
         return \`
           <tr class="hover:bg-slate-50 transition">
-            <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">\\\${item.tanggal || '-'}</td>
-            <td class="px-4 py-3 whitespace-nowrap">
-              <span class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold">\\\${item.jenis_ayam || 'Ayam Petelur'}</span>
-            </td>
-            <td class="px-4 py-3 text-right text-slate-700 whitespace-nowrap"><span class="font-bold text-slate-900">\\\${item.jumlah_ayam}</span> ekor</td>
-            <td class="px-4 py-3 text-right text-emerald-600 font-bold whitespace-nowrap">\\\${item.pakan_kg} kg</td>
-            <td class="px-4 py-3 text-right text-amber-600 font-bold whitespace-nowrap">\\\${item.jumlah_telur} butir</td>
+            <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">\${item.tanggal || '-'}</td>
+            <td class="px-4 py-3 text-right text-slate-700 whitespace-nowrap"><span class="font-bold text-slate-900">\${item.jumlah_ayam}</span> ekor</td>
+            <td class="px-4 py-3 text-right text-emerald-600 font-bold whitespace-nowrap">\${item.pakan_kg} kg</td>
+            <td class="px-4 py-3 text-right text-amber-600 font-bold whitespace-nowrap">\${item.jumlah_telur} butir</td>
             <td class="px-4 py-3 text-right whitespace-nowrap">
-              <span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full border \\\${rasio >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : rasio >= 65 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-700 border-rose-200'}">
-                \\\${rasio}%
+              <span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full border \${rasio >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : rasio >= 65 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-700 border-rose-200'}">
+                \${rasio}%
               </span>
             </td>
-            <td class="px-4 py-3 text-slate-500 text-xs max-w-xs truncate">\\\${item.catatan || '-'}</td>
+            <td class="px-4 py-3 text-slate-500 text-xs max-w-xs truncate">\${item.catatan || '-'}</td>
             <td class="px-4 py-3 text-center whitespace-nowrap">
-              <button onclick="hapusAyam('\\\\\\\${item.id}')" class="text-xs font-semibold text-rose-500 hover:text-rose-700 px-2 py-1 rounded hover:bg-rose-50 transition">
+              <button onclick="hapusAyam('\${item.id}')" class="text-xs font-semibold text-rose-500 hover:text-rose-700 px-2 py-1 rounded hover:bg-rose-50 transition">
                 Hapus
               </button>
             </td>

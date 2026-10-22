@@ -238,17 +238,17 @@ export default function App() {
     }
   };
 
-  // Delete Ayam Record (Optimistic UI Update with UUID check to prevent UUID cast errors)
+  // Delete Ayam Record (Optimistic UI Update + Supabase Sync)
   const handleDeleteAyam = async (id: string) => {
     const previous = [...ayamList];
-    const updated = ayamList.filter((item) => item.id !== id);
+    const updated = ayamList.filter((item) => String(item.id) !== String(id));
     setAyamList(updated);
     saveLocalAyam(updated);
     triggerToast('Catatan ayam berhasil dihapus.');
 
     const client = getSupabaseClient(config);
-    // Only attempt remote delete in Supabase if the ID is a valid database UUID
-    if (client && isConnected && isUUID(id)) {
+    const isLocalOnly = typeof id === 'string' && (id.startsWith('ayam-') || id.startsWith('demo-'));
+    if (client && isConnected && !isLocalOnly) {
       try {
         const { error } = await client.from('catatan_ayam').delete().eq('id', id);
         if (error) {
@@ -304,16 +304,17 @@ export default function App() {
     }
   };
 
-  // Delete Ikan Record (Optimistic UI Update with UUID check)
+  // Delete Ikan Record (Optimistic UI Update + Supabase Sync)
   const handleDeleteIkan = async (id: string) => {
     const previous = [...ikanList];
-    const updated = ikanList.filter((item) => item.id !== id);
+    const updated = ikanList.filter((item) => String(item.id) !== String(id));
     setIkanList(updated);
     saveLocalIkan(updated);
     triggerToast('Data kolam ikan berhasil dihapus.');
 
     const client = getSupabaseClient(config);
-    if (client && isConnected && isUUID(id)) {
+    const isLocalOnly = typeof id === 'string' && (id.startsWith('ikan-') || id.startsWith('demo-'));
+    if (client && isConnected && !isLocalOnly) {
       try {
         const { error } = await client.from('catatan_ikan').delete().eq('id', id);
         if (error) {
