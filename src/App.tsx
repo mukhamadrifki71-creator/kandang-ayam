@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { CatatanAyam, CatatanIkan, SupabaseConfig } from './types';
+import { CatatanAyam, CatatanIkan, KelompokAyam, SupabaseConfig } from './types';
 import {
   getStoredConfig,
   saveStoredConfig,
@@ -8,6 +8,8 @@ import {
   saveLocalAyam,
   getLocalIkan,
   saveLocalIkan,
+  getLocalKelompokAyam,
+  saveLocalKelompokAyam,
 } from './lib/storage';
 import { AyamSection } from './components/AyamSection';
 import { IkanSection } from './components/IkanSection';
@@ -35,6 +37,7 @@ export default function App() {
 
   const [ayamList, setAyamList] = useState<CatatanAyam[]>([]);
   const [ikanList, setIkanList] = useState<CatatanIkan[]>([]);
+  const [kelompokList, setKelompokList] = useState<KelompokAyam[]>(() => getLocalKelompokAyam());
 
   // Modals state
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -369,6 +372,33 @@ export default function App() {
     }
   };
 
+  // Kelompok Ayam Handlers (Usia, Angkatan & Prediksi Bertelur)
+  const handleAddKelompok = (data: Omit<KelompokAyam, 'id' | 'created_at'>) => {
+    const newItem: KelompokAyam = {
+      ...data,
+      id: 'kelompok-' + Date.now(),
+      created_at: new Date().toISOString(),
+    };
+    const updated = [...kelompokList, newItem];
+    setKelompokList(updated);
+    saveLocalKelompokAyam(updated);
+    triggerToast(`Kelompok ${data.nama} (${data.jumlah} ekor) berhasil ditambahkan!`);
+  };
+
+  const handleUpdateKelompok = (id: string, data: Partial<KelompokAyam>) => {
+    const updated = kelompokList.map((k) => (k.id === id ? { ...k, ...data } : k));
+    setKelompokList(updated);
+    saveLocalKelompokAyam(updated);
+    triggerToast('Data kelompok ayam berhasil diperbarui.');
+  };
+
+  const handleDeleteKelompok = (id: string) => {
+    const updated = kelompokList.filter((k) => k.id !== id);
+    setKelompokList(updated);
+    saveLocalKelompokAyam(updated);
+    triggerToast('Kelompok ayam berhasil dihapus.');
+  };
+
   // Summary Metrics
   const totalAyamPakan = ayamList.reduce((acc, c) => acc + (Number(c.pakan_kg) || 0), 0);
   const totalIkanPakan = ikanList.reduce((acc, c) => acc + (Number(c.pakan_kg) || 0), 0);
@@ -554,6 +584,10 @@ export default function App() {
             onAdd={handleAddAyam}
             onDelete={handleDeleteAyam}
             isRealtimeActive={isRealtimeActive}
+            kelompokList={kelompokList}
+            onAddKelompok={handleAddKelompok}
+            onUpdateKelompok={handleUpdateKelompok}
+            onDeleteKelompok={handleDeleteKelompok}
           />
         )}
 

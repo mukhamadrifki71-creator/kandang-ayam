@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { CatatanAyam } from '../types';
+import React, { useState, useEffect } from 'react';
+import { CatatanAyam, KelompokAyam } from '../types';
 import {
   Plus,
   Trash2,
@@ -12,12 +12,17 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { AyamSmartAdvisor } from './AyamSmartAdvisor';
+import { KelompokAyamManager } from './KelompokAyamManager';
 
 interface Props {
   ayamList: CatatanAyam[];
   onAdd: (data: Omit<CatatanAyam, 'id' | 'created_at'>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   isRealtimeActive: boolean;
+  kelompokList: KelompokAyam[];
+  onAddKelompok: (data: Omit<KelompokAyam, 'id' | 'created_at'>) => void;
+  onUpdateKelompok: (id: string, data: Partial<KelompokAyam>) => void;
+  onDeleteKelompok: (id: string) => void;
 }
 
 export const AyamSection: React.FC<Props> = ({
@@ -25,12 +30,21 @@ export const AyamSection: React.FC<Props> = ({
   onAdd,
   onDelete,
   isRealtimeActive,
+  kelompokList,
+  onAddKelompok,
+  onUpdateKelompok,
+  onDeleteKelompok,
 }) => {
   const todayStr = new Date().toISOString().slice(0, 10);
 
-  // Form states
+  // Total ekor dari semua kelompok ayam jika ada
+  const totalPopulasiKelompok = kelompokList.reduce((acc, k) => acc + (Number(k.jumlah) || 0), 0);
+
+  // Form states - jika ada kelompok ayam, gunakan total ekor kelompok sebagai nilai awal
   const [tanggal, setTanggal] = useState(todayStr);
-  const [jumlahAyam, setJumlahAyam] = useState<string>('120');
+  const [jumlahAyam, setJumlahAyam] = useState<string>(
+    totalPopulasiKelompok > 0 ? String(totalPopulasiKelompok) : '7'
+  );
   const [pakanKg, setPakanKg] = useState<string>('15');
   const [jumlahTelur, setJumlahTelur] = useState<string>('102');
   const [catatan, setCatatan] = useState('');
@@ -131,7 +145,16 @@ export const AyamSection: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* MONITORING & PREDIKSI CERDAS AYAM */}
+      {/* MANAJEMEN USIA AYAM & PREDIKSI WAKTU BERTELUR */}
+      <KelompokAyamManager
+        kelompokList={kelompokList}
+        onAddKelompok={onAddKelompok}
+        onUpdateKelompok={onUpdateKelompok}
+        onDeleteKelompok={onDeleteKelompok}
+        onSelectPopulasi={(jumlah) => setJumlahAyam(String(jumlah))}
+      />
+
+      {/* MONITORING & PREDIKSI CERDAS PRODUKSI TELUR & PAKAN */}
       <AyamSmartAdvisor ayamList={ayamList} />
 
       {/* FORM INPUT CATATAN AYAM (SIMPEL & CEPAT) */}

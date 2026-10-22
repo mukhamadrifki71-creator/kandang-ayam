@@ -38,3 +38,30 @@ export interface AyamAiAnalysis {
   peringatan: string[];
   saran_praktis: string[];
 }
+
+export interface KelompokAyam {
+  id: string;
+  nama: string; // misal: "Kelompok 1 (7 Ekor)"
+  jumlah: number; // misal: 7
+  umur_minggu: number; // umur awal dalam minggu saat dicatat
+  tanggal_mulai: string; // YYYY-MM-DD saat umur_minggu dicatat
+  jenis_ras?: string; // misal: "Isa Brown", "Lohmann Brown", "Ayam Kampung Petelur"
+  catatan?: string;
+  created_at?: string;
+}
+
+export interface UsiaAyamDetail {
+  kelompok: KelompokAyam;
+  umur_sekarang_minggu: number;
+  umur_sekarang_hari_total: number;
+  umur_sekarang_sisa_hari: number;
+  fase_nama: string;
+  fase_warna: string;
+  fase_deskripsi: string;
+  sudah_bertelur: boolean;
+  prediksi_tgl_bertelur: string; // YYYY-MM-DD
+  sisa_hari_menuju_bertelur: number;
+  progress_menuju_lay: number; // 0 - 100%
+  estimasi_potensi_telur_harian: number; // butir per hari saat puncak
+  rekomendasi_pakan_dan_cahaya: string;
+}

@@ -1,9 +1,10 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { CatatanAyam, CatatanIkan, SupabaseConfig } from '../types';
+import { CatatanAyam, CatatanIkan, KelompokAyam, SupabaseConfig } from '../types';
 
 const CONFIG_KEY = 'ternakku_supabase_config';
 const LOCAL_AYAM_KEY = 'ternakku_local_ayam';
 const LOCAL_IKAN_KEY = 'ternakku_local_ikan';
+const LOCAL_KELOMPOK_KEY = 'ternakku_local_kelompok_ayam';
 
 export const INITIAL_AYAM_DATA: CatatanAyam[] = [
   {
@@ -143,4 +144,37 @@ export function getLocalIkan(): CatatanIkan[] {
 
 export function saveLocalIkan(data: CatatanIkan[]): void {
   localStorage.setItem(LOCAL_IKAN_KEY, JSON.stringify(data));
+}
+
+export const INITIAL_KELOMPOK_AYAM: KelompokAyam[] = [
+  {
+    id: 'kelompok-1',
+    nama: 'Kelompok Ayam Utama',
+    jumlah: 7,
+    umur_minggu: 15,
+    tanggal_mulai: new Date().toISOString().slice(0, 10),
+    jenis_ras: 'Ayam Petelur Coklat (Layer)',
+    catatan: '7 ekor ayam sehat, tinggal ~3 minggu lagi memasuki usia bertelur',
+    created_at: new Date().toISOString(),
+  },
+];
+
+export function getLocalKelompokAyam(): KelompokAyam[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_KELOMPOK_KEY);
+    if (raw) {
+      const parsed: KelompokAyam[] = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Error reading kelompok ayam from localStorage', e);
+  }
+  localStorage.setItem(LOCAL_KELOMPOK_KEY, JSON.stringify(INITIAL_KELOMPOK_AYAM));
+  return INITIAL_KELOMPOK_AYAM;
+}
+
+export function saveLocalKelompokAyam(data: KelompokAyam[]): void {
+  localStorage.setItem(LOCAL_KELOMPOK_KEY, JSON.stringify(data));
 }
