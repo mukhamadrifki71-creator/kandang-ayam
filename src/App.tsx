@@ -195,30 +195,53 @@ export default function App() {
     );
   };
 
-  // Add Ayam Record (Sends standard table columns only to avoid PGRST204)
+  // Add Ayam Record (Resilient: inserts age and group, fallbacks gracefully if schema missing columns)
   const handleAddAyam = async (record: Omit<CatatanAyam, 'id' | 'created_at'>) => {
     const client = getSupabaseClient(config);
 
+    // Format catatan with age tag for backward compatibility
+    const ageTag =
+      typeof record.usia_minggu === 'number'
+        ? `[Usia: ${record.usia_minggu} Minggu${record.kelompok_nama ? ` | ${record.kelompok_nama}` : ''}] `
+        : '';
+    const formattedCatatan = (ageTag + (record.catatan || '')).trim();
+
     if (client && isConnected) {
-      const insertPayload = {
+      let insertPayload: Record<string, unknown> = {
         tanggal: record.tanggal,
         jumlah_ayam: record.jumlah_ayam,
         pakan_kg: record.pakan_kg,
         jumlah_telur: record.jumlah_telur,
-        catatan: record.catatan || '',
+        usia_minggu: record.usia_minggu,
+        catatan: formattedCatatan,
       };
 
-      const { data, error } = await client.from('catatan_ayam').insert([insertPayload]).select();
+      let res = await client.from('catatan_ayam').insert([insertPayload]).select();
 
-      if (error) {
-        triggerToast('Gagal menyimpan ke Supabase: ' + error.message);
-        throw error;
+      // If user's Supabase table doesn't have usia_minggu column yet (PGRST204), fallback to standard columns
+      if (res.error && res.error.code === 'PGRST204') {
+        const fallbackPayload = {
+          tanggal: record.tanggal,
+          jumlah_ayam: record.jumlah_ayam,
+          pakan_kg: record.pakan_kg,
+          jumlah_telur: record.jumlah_telur,
+          catatan: formattedCatatan,
+        };
+        res = await client.from('catatan_ayam').insert([fallbackPayload]).select();
       }
 
-      const insertedItem = data && data[0] ? data[0] : null;
+      if (res.error) {
+        triggerToast('Gagal menyimpan ke Supabase: ' + res.error.message);
+        throw res.error;
+      }
+
+      const insertedItem = res.data && res.data[0] ? res.data[0] : null;
       const newItem: CatatanAyam = {
         ...(insertedItem || record),
         id: insertedItem?.id || 'ayam-' + Date.now(),
+        usia_minggu: record.usia_minggu,
+        kelompok_id: record.kelompok_id,
+        kelompok_nama: record.kelompok_nama,
         created_at: insertedItem?.created_at || new Date().toISOString(),
       };
       setAyamList((prev) => {
@@ -226,18 +249,19 @@ export default function App() {
         return [newItem, ...prev];
       });
 
-      triggerToast('Catatan ayam berhasil disimpan ke Supabase!');
+      triggerToast('Catatan ayam beserta usia berhasil disimpan ke Supabase!');
     } else {
       // Local demo mode
       const newItem: CatatanAyam = {
         ...record,
         id: 'ayam-' + Date.now(),
+        catatan: formattedCatatan,
         created_at: new Date().toISOString(),
       };
       const updated = [newItem, ...ayamList];
       setAyamList(updated);
       saveLocalAyam(updated);
-      triggerToast('Catatan ayam tersimpan (Mode Demo Lokal)!');
+      triggerToast('Catatan ayam & usia tersimpan (Mode Demo Lokal)!');
     }
   };
 

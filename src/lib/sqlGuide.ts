@@ -6,11 +6,17 @@ CREATE TABLE IF NOT EXISTS public.catatan_ayam (
   jumlah_ayam INTEGER NOT NULL CHECK (jumlah_ayam >= 0),
   pakan_kg NUMERIC(8, 2) NOT NULL CHECK (pakan_kg >= 0),
   jumlah_telur INTEGER NOT NULL CHECK (jumlah_telur >= 0),
+  usia_minggu INTEGER DEFAULT NULL,
+  kelompok_nama TEXT DEFAULT NULL,
   jenis_ayam TEXT DEFAULT 'Ayam Petelur',
   catatan TEXT DEFAULT ''
 );
 
--- JIKA TABEL SUDAH ADA SEBELUMNYA, TAMBAHKAN KOLOM JENIS_AYAM JIKA BELUM ADA:
+-- JIKA TABEL SUDAH ADA SEBELUMNYA, TAMBAHKAN KOLOM USIA & JENIS JIKA BELUM ADA:
+ALTER TABLE public.catatan_ayam 
+  ADD COLUMN IF NOT EXISTS usia_minggu INTEGER DEFAULT NULL;
+ALTER TABLE public.catatan_ayam 
+  ADD COLUMN IF NOT EXISTS kelompok_nama TEXT DEFAULT NULL;
 ALTER TABLE public.catatan_ayam 
   ADD COLUMN IF NOT EXISTS jenis_ayam TEXT DEFAULT 'Ayam Petelur';
 

@@ -14,6 +14,9 @@ import {
   Clock,
   ChevronRight,
   TrendingUp,
+  Table,
+  LayoutGrid,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface Props {
@@ -31,6 +34,7 @@ export const KelompokAyamManager: React.FC<Props> = ({
   onDeleteKelompok,
   onSelectPopulasi,
 }) => {
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<KelompokAyam | null>(null);
   const [itemToDelete, setItemToDelete] = useState<KelompokAyam | null>(null);
@@ -98,73 +102,250 @@ export const KelompokAyamManager: React.FC<Props> = ({
   return (
     <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
       {/* HEADER SECTION */}
-      <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-amber-50/70 via-emerald-50/40 to-slate-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-amber-50/70 via-emerald-50/40 to-slate-50 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-700 flex items-center justify-center font-bold text-lg shrink-0 border border-amber-200/60">
             🐔
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-extrabold text-base text-slate-800">
-                Data Usia & Prediksi Bertelur Ayam
+                Data Usia & Prediksi Bertelur Hewan
               </h3>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
                 {kelompokList.length} Kelompok
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Pantau usia setiap kelompok ayam dan estimasi otomatis kapan mulai bertelur perdana
+              Pantau usia setiap kelompok ayam secara akurat & estimasi tanggal otomatis mulai bertelur perdana
             </p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={openAddModal}
-          className="self-stretch sm:self-auto px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Tambah Ayam / Angkatan Baru</span>
-        </button>
+        <div className="flex items-center gap-2 self-stretch md:self-auto flex-wrap">
+          {/* VIEW SWITCHER: TABEL vs KARTU */}
+          <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                viewMode === 'table'
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <Table className="w-3.5 h-3.5" />
+              <span>Tabel Matriks Usia</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                viewMode === 'cards'
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Kartu Detail</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={openAddModal}
+            className="flex-1 md:flex-none px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Tambah Ayam / Angkatan Baru</span>
+          </button>
+        </div>
       </div>
 
       {/* SUMMARY BANNER */}
-      <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-slate-700">Total Populasi:</span>
-          <span className="font-black text-slate-900 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-            {totalEkor} ekor
-          </span>
+      <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-slate-700">Total Populasi:</span>
+            <span className="font-black text-slate-900 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+              {totalEkor} ekor
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 font-semibold">
+              Menunggu Bertelur: {details.filter((d) => !d.sudah_bertelur).length} kelompok (
+              {details
+                .filter((d) => !d.sudah_bertelur)
+                .reduce((acc, d) => acc + (Number(d.kelompok.jumlah) || 0), 0)}{' '}
+              ekor)
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 font-semibold">
+              Sudah Bertelur Aktif: {details.filter((d) => d.sudah_bertelur).length} kelompok
+            </span>
+          </div>
+
           {onSelectPopulasi && (
             <button
               type="button"
               onClick={() => onSelectPopulasi(totalEkor)}
-              className="text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold underline ml-1 cursor-pointer"
+              className="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold underline cursor-pointer"
               title="Isi jumlah ini ke form catatan harian di bawah"
             >
-              Gunakan {totalEkor} di form harian &darr;
+              Gunakan {totalEkor} ekor di form catatan harian &darr;
             </button>
           )}
         </div>
+
         <div className="text-[11px] text-slate-500 flex items-center gap-1">
           <Clock className="w-3.5 h-3.5 text-amber-600" />
-          <span>Standar kematangan bertelur ayam: umur <strong>18–20 minggu</strong></span>
+          <span>Ayam petelur mulai berproduksi di usia <strong>18–20 minggu</strong></span>
         </div>
       </div>
 
-      {/* LIST KARTU KELOMPOK AYAM */}
+      {/* CONTENT: TABEL MATRIKS USIA ATAU KARTU DETAIL */}
       <div className="p-4 sm:p-5">
         {kelompokList.length === 0 ? (
           <div className="text-center py-8 text-slate-400">
             <p className="text-sm">Belum ada kelompok ayam yang didaftarkan.</p>
             <button
               onClick={openAddModal}
-              className="mt-2 text-xs font-bold text-emerald-600 underline"
+              className="mt-2 text-xs font-bold text-emerald-600 underline cursor-pointer"
             >
               Klik untuk menambah kelompok ayam pertama Anda
             </button>
           </div>
+        ) : viewMode === 'table' ? (
+          /* TAMPILAN TABEL MATRIKS USIA HEWAN & PREDIKSI */
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left text-xs text-slate-700">
+              <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                <tr>
+                  <th className="py-3 px-4">Kelompok / Batch Ayam</th>
+                  <th className="py-3 px-3 text-right">Populasi</th>
+                  <th className="py-3 px-4">KOLOM USIA SAAT INI</th>
+                  <th className="py-3 px-4">Fase Biologis</th>
+                  <th className="py-3 px-4">PREDIKSI BERTELUR PERDANA</th>
+                  <th className="py-3 px-4 text-right">Potensi Panen</th>
+                  <th className="py-3 px-4">Rekomendasi Pakan/Cahaya</th>
+                  <th className="py-3 px-3 text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {details.map((item) => {
+                  const k = item.kelompok;
+                  return (
+                    <tr key={k.id} className="hover:bg-slate-50 transition">
+                      <td className="py-3.5 px-4 font-bold text-slate-900">
+                        <div>
+                          <span className="text-xs">{k.nama}</span>
+                          <span className="block text-[11px] text-slate-400 font-normal">
+                            {k.jenis_ras || 'Ayam Petelur'}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-3 text-right font-black text-slate-800 whitespace-nowrap">
+                        {k.jumlah} ekor
+                      </td>
+
+                      {/* KOLOM USIA SAAT INI */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="space-y-0.5">
+                          <span className="font-black text-xs text-amber-950 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 inline-block">
+                            {item.umur_sekarang_minggu} Minggu
+                            {item.umur_sekarang_sisa_hari > 0 ? ` +${item.umur_sekarang_sisa_hari} hr` : ''}
+                          </span>
+                          <span className="text-[10px] text-slate-400 block font-normal">
+                            Total {item.umur_sekarang_hari_total} hari
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* FASE BIOLOGIS */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${item.fase_warna}`}>
+                          {item.fase_nama}
+                        </span>
+                      </td>
+
+                      {/* PREDIKSI BERTELUR PERDANA */}
+                      <td className="py-3.5 px-4">
+                        {item.sudah_bertelur ? (
+                          <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-xs whitespace-nowrap">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span>Masa Bertelur Aktif</span>
+                          </div>
+                        ) : (
+                          <div className="space-y-1 min-w-[190px]">
+                            <div className="flex items-center justify-between text-xs font-bold text-purple-900">
+                              <span className="flex items-center gap-1">
+                                <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                                <span>~{Math.ceil(item.sisa_hari_menuju_bertelur / 7)} mg lagi</span>
+                              </span>
+                              <span className="text-[10px] text-purple-700 font-medium">
+                                ({item.sisa_hari_menuju_bertelur} hari)
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-semibold text-slate-600 block">
+                              Tgl: {formatTanggalIndo(item.prediksi_tgl_bertelur)}
+                            </span>
+                            <div className="w-full h-1.5 rounded-full bg-purple-100 overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-purple-500 to-amber-500 rounded-full"
+                                style={{ width: `${item.progress_menuju_lay}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* POTENSI PANEN */}
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <span className="font-extrabold text-amber-800 text-xs bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                          ~{item.estimasi_potensi_telur_harian} btr/hari
+                        </span>
+                      </td>
+
+                      {/* REKOMENDASI PAKAN */}
+                      <td className="py-3.5 px-4 text-slate-600 text-[11px] max-w-[220px]">
+                        <span className="line-clamp-2" title={item.rekomendasi_pakan_dan_cahaya}>
+                          {item.rekomendasi_pakan_dan_cahaya}
+                        </span>
+                      </td>
+
+                      {/* AKSI */}
+                      <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(k)}
+                            className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition cursor-pointer"
+                            title="Edit Data Kelompok"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setItemToDelete(k)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            title="Hapus Kelompok"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         ) : (
+          /* TAMPILAN KARTU DETAIL */
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {details.map((item) => {
               const k = item.kelompok;
@@ -192,7 +373,7 @@ export const KelompokAyamManager: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => openEditModal(k)}
-                        className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
+                        className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition cursor-pointer"
                         title="Edit Data Kelompok"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
@@ -200,7 +381,7 @@ export const KelompokAyamManager: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => setItemToDelete(k)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                         title="Hapus Kelompok"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -309,6 +490,26 @@ export const KelompokAyamManager: React.FC<Props> = ({
             })}
           </div>
         )}
+
+        {/* ANALISIS PANEN BERTAHAP MULTI-ANGKATAN */}
+        {kelompokList.length > 0 && (
+          <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-50/80 via-amber-50/60 to-purple-50/80 border border-emerald-200/80 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📊</span>
+              <h4 className="font-extrabold text-xs sm:text-sm text-slate-800">
+                Analisis Panen Bertahap Multi-Angkatan Ayam
+              </h4>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Setiap kali Anda menambahkan ayam baru di kemudian hari, sistem otomatis menyusun jadwal panen bergilir.
+              Saat ini total estimasi potensi produksi jika semua kelompok telah masuk masa bertelur puncak adalah{' '}
+              <strong className="text-emerald-800 font-extrabold">
+                ~{details.reduce((acc, d) => acc + d.estimasi_potensi_telur_harian, 0)} butir telur per hari
+              </strong>{' '}
+              dari total {totalEkor} ekor populasi.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* MODAL TAMBAH / EDIT KELOMPOK AYAM */}
@@ -325,7 +526,7 @@ export const KelompokAyamManager: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -374,12 +575,41 @@ export const KelompokAyamManager: React.FC<Props> = ({
                     onChange={(e) => setUmurMinggu(e.target.value)}
                     className="w-full text-xs font-bold px-3 py-2 rounded-xl border border-slate-200 focus:outline-emerald-600"
                   />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    {parseInt(umurMinggu, 10) >= 18
-                      ? 'Sudah usia bertelur (18+ mgg)'
-                      : `Tinggal ~${Math.max(0, 18 - (parseInt(umurMinggu, 10) || 0))} mgg lagi bertelur`}
-                  </span>
                 </div>
+              </div>
+
+              {/* 1-CLICK QUICK PRESETS USIA HEWAN */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1.5">
+                  Pilihan Cepat Tahap Usia Ayam:
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: '🐥 DOC (1 mg)', val: 1 },
+                    { label: '🐣 Grower (8 mg)', val: 8 },
+                    { label: '🐔 Pullet / Dara (15 mg)', val: 15 },
+                    { label: '🥚 Siap Telur (18 mg)', val: 18 },
+                    { label: '🏆 Puncak (24 mg)', val: 24 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.val}
+                      type="button"
+                      onClick={() => setUmurMinggu(String(preset.val))}
+                      className={`text-[10px] px-2 py-1 rounded-lg border font-semibold transition cursor-pointer ${
+                        parseInt(umurMinggu, 10) === preset.val
+                          ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs font-bold'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  {parseInt(umurMinggu, 10) >= 18
+                    ? '✅ Ayam sudah memasuki usia bertelur (18+ minggu).'
+                    : `🔮 Tinggal ~${Math.max(0, 18 - (parseInt(umurMinggu, 10) || 0))} minggu lagi menuju masa bertelur.`}
+                </span>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -434,13 +664,13 @@ export const KelompokAyamManager: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl text-slate-600 hover:bg-slate-100 transition"
+                  className="px-4 py-2 text-xs font-semibold rounded-xl text-slate-600 hover:bg-slate-100 transition cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs transition"
+                  className="px-5 py-2 text-xs font-bold rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs transition cursor-pointer"
                 >
                   {editingItem ? 'Simpan Perubahan' : 'Tambahkan Kelompok'}
                 </button>

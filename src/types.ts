@@ -5,6 +5,9 @@ export interface CatatanAyam {
   jumlah_ayam: number;
   pakan_kg: number;
   jumlah_telur: number;
+  usia_minggu?: number; // umur ayam dalam minggu
+  kelompok_id?: string; // id kelompok ayam jika terkait
+  kelompok_nama?: string; // nama kelompok ayam (misal: "Kelompok Ayam 7 Ekor")
   jenis_ayam?: string; // opsional, contoh: 'Ayam Petelur', 'Isa Brown'
   nama_kandang?: string; // opsional backwards compatibility
   catatan?: string;

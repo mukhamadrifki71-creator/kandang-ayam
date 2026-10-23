@@ -10,9 +10,18 @@ import {
   TrendingUp,
   X,
   AlertTriangle,
+  Sparkles,
+  Clock,
+  Layers,
 } from 'lucide-react';
 import { AyamSmartAdvisor } from './AyamSmartAdvisor';
 import { KelompokAyamManager } from './KelompokAyamManager';
+import {
+  hitungDetailUsiaAyam,
+  hitungPrediksiDariUmurMinggu,
+  parseUsiaDariCatatan,
+  formatTanggalIndo,
+} from '../lib/ayamAgeUtils';
 
 interface Props {
   ayamList: CatatanAyam[];
@@ -42,13 +51,43 @@ export const AyamSection: React.FC<Props> = ({
 
   // Form states - jika ada kelompok ayam, gunakan total ekor kelompok sebagai nilai awal
   const [tanggal, setTanggal] = useState(todayStr);
-  const [jumlahAyam, setJumlahAyam] = useState<string>(
-    totalPopulasiKelompok > 0 ? String(totalPopulasiKelompok) : '7'
+  const [selectedKelompokId, setSelectedKelompokId] = useState<string>(
+    kelompokList.length > 0 ? kelompokList[0].id : ''
   );
-  const [pakanKg, setPakanKg] = useState<string>('15');
-  const [jumlahTelur, setJumlahTelur] = useState<string>('102');
+  const [jumlahAyam, setJumlahAyam] = useState<string>(
+    kelompokList.length > 0
+      ? String(kelompokList[0].jumlah)
+      : totalPopulasiKelompok > 0
+      ? String(totalPopulasiKelompok)
+      : '7'
+  );
+  const [usiaMinggu, setUsiaMinggu] = useState<string>(
+    kelompokList.length > 0 ? String(kelompokList[0].umur_minggu) : '15'
+  );
+  const [pakanKg, setPakanKg] = useState<string>('0.9');
+  const [jumlahTelur, setJumlahTelur] = useState<string>('0');
   const [catatan, setCatatan] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Auto-sync form when a kelompok is selected
+  const handleSelectKelompok = (id: string) => {
+    setSelectedKelompokId(id);
+    if (!id || id === 'custom') return;
+    const target = kelompokList.find((k) => k.id === id);
+    if (target) {
+      setJumlahAyam(String(target.jumlah));
+      const detail = hitungDetailUsiaAyam(target);
+      setUsiaMinggu(String(detail.umur_sekarang_minggu));
+      // Jika belum di umur bertelur (<18 minggu), set default telur ke 0
+      if (!detail.sudah_bertelur) {
+        setJumlahTelur('0');
+      }
+    }
+  };
+
+  // Hitung live preview prediksi dari usia di form input
+  const umurInputNumber = parseInt(usiaMinggu, 10) || 0;
+  const currentPrediksi = hitungPrediksiDariUmurMinggu(umurInputNumber, tanggal);
 
   // State dialog konfirmasi hapus (tidak menggunakan window.confirm yang sering diblokir iframe)
   const [itemToDelete, setItemToDelete] = useState<CatatanAyam | null>(null);
@@ -69,11 +108,16 @@ export const AyamSection: React.FC<Props> = ({
 
     try {
       setIsSubmitting(true);
+      const selectedK = kelompokList.find((k) => k.id === selectedKelompokId);
+      const parsedAge = parseInt(usiaMinggu, 10);
       await onAdd({
         tanggal,
         jumlah_ayam: parseInt(jumlahAyam, 10) || 0,
         pakan_kg: parseFloat(pakanKg) || 0,
         jumlah_telur: parseInt(jumlahTelur, 10) || 0,
+        usia_minggu: !isNaN(parsedAge) ? parsedAge : undefined,
+        kelompok_id: selectedK ? selectedK.id : undefined,
+        kelompok_nama: selectedK ? selectedK.nama : undefined,
         catatan: catatan.trim(),
       });
       setCatatan('');
@@ -175,20 +219,91 @@ export const AyamSection: React.FC<Props> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Tanggal Catatan
-              </label>
-              <input
-                type="date"
-                value={tanggal}
-                onChange={(e) => setTanggal(e.target.value)}
-                required
-                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-              />
+          {/* BARIS PILIH KELOMPOK & USIA HEWAN */}
+          <div className="p-3.5 bg-gradient-to-r from-amber-50/60 to-emerald-50/50 rounded-xl border border-amber-200/70 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Pilih Kelompok / Angkatan</span>
+                </label>
+                <select
+                  value={selectedKelompokId}
+                  onChange={(e) => handleSelectKelompok(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                >
+                  {kelompokList.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      🐔 {k.nama} ({k.jumlah} ekor)
+                    </option>
+                  ))}
+                  <option value="custom">&plus; Input Usia & Populasi Manual</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Usia Hewan (Minggu)</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="150"
+                  value={usiaMinggu}
+                  onChange={(e) => setUsiaMinggu(e.target.value)}
+                  placeholder="Contoh: 15"
+                  className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Tanggal Catatan</span>
+                </label>
+                <input
+                  type="date"
+                  value={tanggal}
+                  onChange={(e) => setTanggal(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                />
+              </div>
             </div>
 
+            {/* LIVE PREVIEW ANALISIS USIA & PREDIKSI BERTELUR */}
+            <div className="p-2.5 rounded-lg bg-white/90 border border-amber-200/90 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🔮</span>
+                <div>
+                  <span className="font-extrabold text-slate-800">
+                    Analisis Usia ({umurInputNumber} Minggu):{' '}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${currentPrediksi.badgeColor}`}>
+                    {currentPrediksi.faseNama}
+                  </span>
+                </div>
+              </div>
+              <div className="font-semibold">
+                {currentPrediksi.sudahBertelur ? (
+                  <span className="text-emerald-700 flex items-center gap-1">
+                    <Egg className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Masa Bertelur Aktif (Siap Panen)</span>
+                  </span>
+                ) : (
+                  <span className="text-purple-700 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                    <span>
+                      Prediksi Bertelur: ~{currentPrediksi.sisaMinggu} minggu lagi ({formatTanggalIndo(currentPrediksi.prediksiTglBertelur)})
+                    </span>
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Jumlah Ayam (Ekor)
@@ -198,9 +313,9 @@ export const AyamSection: React.FC<Props> = ({
                 min="0"
                 value={jumlahAyam}
                 onChange={(e) => setJumlahAyam(e.target.value)}
-                placeholder="Contoh: 120"
+                placeholder="Contoh: 7"
                 required
-                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-semibold"
               />
             </div>
 
@@ -210,11 +325,11 @@ export const AyamSection: React.FC<Props> = ({
               </label>
               <input
                 type="number"
-                step="0.1"
+                step="0.05"
                 min="0"
                 value={pakanKg}
                 onChange={(e) => setPakanKg(e.target.value)}
-                placeholder="Contoh: 15"
+                placeholder="Contoh: 0.9"
                 required
                 className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
               />
@@ -229,7 +344,7 @@ export const AyamSection: React.FC<Props> = ({
                 min="0"
                 value={jumlahTelur}
                 onChange={(e) => setJumlahTelur(e.target.value)}
-                placeholder="Contoh: 102"
+                placeholder="Contoh: 0"
                 required
                 className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
               />
@@ -298,6 +413,7 @@ export const AyamSection: React.FC<Props> = ({
                   <tr>
                     <th className="py-3 px-4">Tanggal</th>
                     <th className="py-3 px-4 text-right">Populasi</th>
+                    <th className="py-3 px-4">KOLOM USIA HEWAN & PREDIKSI</th>
                     <th className="py-3 px-4 text-right">Pakan (Kg)</th>
                     <th className="py-3 px-4 text-right">Pakan/Ekor</th>
                     <th className="py-3 px-4 text-right">Telur (Butir)</th>
@@ -313,25 +429,69 @@ export const AyamSection: React.FC<Props> = ({
                     const telur = item.jumlah_telur || 0;
                     const gramPerEkor = pop > 0 ? Math.round((pakan * 1000) / pop) : 0;
                     const prodRate = pop > 0 ? Math.round((telur / pop) * 100) : 0;
+                    const parsedUsia = parseUsiaDariCatatan(item, kelompokList);
 
                     return (
                       <tr key={item.id} className="hover:bg-slate-50 transition">
                         <td className="py-3 px-4 font-bold text-slate-800 whitespace-nowrap">
                           {item.tanggal}
                         </td>
-                        <td className="py-3 px-4 text-right font-semibold text-slate-800">
+                        <td className="py-3 px-4 text-right font-semibold text-slate-800 whitespace-nowrap">
                           {pop} ekor
                         </td>
-                        <td className="py-3 px-4 text-right font-semibold text-emerald-700">
+
+                        {/* KOLOM USIA HEWAN & PREDIKSI BERTELUR */}
+                        <td className="py-3 px-4">
+                          {parsedUsia.usiaMinggu !== undefined ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-extrabold text-slate-900 text-xs bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-md">
+                                  Usia: {parsedUsia.usiaMinggu} Minggu
+                                </span>
+                                {parsedUsia.faseNama && (
+                                  <span
+                                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border ${
+                                      parsedUsia.badgeColor || 'bg-slate-100 text-slate-700'
+                                    }`}
+                                  >
+                                    {parsedUsia.faseNama}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] font-medium leading-tight">
+                                {parsedUsia.sudahBertelur ? (
+                                  <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                                    <Egg className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                    <span>Masa Bertelur Aktif</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-purple-700 font-medium flex items-center gap-1">
+                                    <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                                    <span>Prediksi: {parsedUsia.prediksiRingkas}</span>
+                                  </span>
+                                )}
+                              </div>
+                              {parsedUsia.kelompokNama && (
+                                <span className="text-[10px] text-slate-400 block truncate max-w-[170px]">
+                                  {parsedUsia.kelompokNama}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-xs italic">-</span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4 text-right font-semibold text-emerald-700 whitespace-nowrap">
                           {pakan} kg
                         </td>
-                        <td className="py-3 px-4 text-right text-slate-600">
+                        <td className="py-3 px-4 text-right text-slate-600 whitespace-nowrap">
                           {gramPerEkor} gr
                         </td>
-                        <td className="py-3 px-4 text-right font-bold text-amber-700">
+                        <td className="py-3 px-4 text-right font-bold text-amber-700 whitespace-nowrap">
                           {telur} butir
                         </td>
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
                           <span
                             className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${
                               prodRate >= 80
@@ -351,7 +511,7 @@ export const AyamSection: React.FC<Props> = ({
                           <button
                             type="button"
                             onClick={() => setItemToDelete(item)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                             title="Hapus Catatan"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -372,20 +532,58 @@ export const AyamSection: React.FC<Props> = ({
                 const telur = item.jumlah_telur || 0;
                 const prodRate = pop > 0 ? Math.round((telur / pop) * 100) : 0;
                 const gramPerEkor = pop > 0 ? Math.round((pakan * 1000) / pop) : 0;
+                const parsedUsia = parseUsiaDariCatatan(item, kelompokList);
 
                 return (
-                  <div key={item.id} className="p-4 space-y-2">
+                  <div key={item.id} className="p-4 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-sm text-slate-800">{item.tanggal}</span>
                       <button
                         type="button"
                         onClick={() => setItemToDelete(item)}
-                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
                         title="Hapus Catatan"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
+
+                    {/* USIA & PREDIKSI HEWAN BADGE DI MOBILE */}
+                    {parsedUsia.usiaMinggu !== undefined && (
+                      <div className="p-2.5 rounded-xl bg-gradient-to-r from-amber-50/90 to-purple-50/90 border border-amber-200/80 text-xs space-y-1">
+                        <div className="flex items-center justify-between gap-1 flex-wrap">
+                          <span className="font-black text-slate-900 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
+                            Usia: {parsedUsia.usiaMinggu} Minggu
+                          </span>
+                          {parsedUsia.faseNama && (
+                            <span
+                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border ${
+                                parsedUsia.badgeColor || 'bg-slate-100'
+                              }`}
+                            >
+                              {parsedUsia.faseNama}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] font-semibold">
+                          {parsedUsia.sudahBertelur ? (
+                            <span className="text-emerald-700 flex items-center gap-1">
+                              <Egg className="w-3.5 h-3.5 text-amber-500" /> Masa Bertelur Aktif
+                            </span>
+                          ) : (
+                            <span className="text-purple-700 flex items-center gap-1">
+                              <Sparkles className="w-3.5 h-3.5 text-purple-600" /> Prediksi: {parsedUsia.prediksiRingkas}
+                            </span>
+                          )}
+                        </div>
+                        {parsedUsia.kelompokNama && (
+                          <span className="text-[10px] text-slate-500 block">
+                            Kelompok: {parsedUsia.kelompokNama}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-3 gap-2 py-1 text-center bg-slate-50 rounded-xl p-2">
                       <div>
