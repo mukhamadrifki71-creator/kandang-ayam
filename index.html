@@ -13,6 +13,19 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Fallback redirection jika di-host langsung dari root GitHub Pages
+      window.addEventListener('DOMContentLoaded', function () {
+        setTimeout(function () {
+          var rootEl = document.getElementById('root');
+          if (rootEl && rootEl.children.length === 0 && window.location.hostname.endsWith('github.io')) {
+            if (!window.location.pathname.includes('/docs/')) {
+              window.location.replace('./docs/');
+            }
+          }
+        }, 1000);
+      });
+    </script>
   </body>
 </html>
 

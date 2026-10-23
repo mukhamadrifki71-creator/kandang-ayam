@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build",
+    "build": "vite build && vite build --outDir docs --emptyOutDir && touch docs/.nojekyll && touch dist/.nojekyll",
     "start": "tsx server.ts",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "rm -rf dist docs/assets server.js",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
