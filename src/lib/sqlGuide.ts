@@ -34,9 +34,22 @@ CREATE TABLE IF NOT EXISTS public.catatan_ikan (
   catatan TEXT DEFAULT ''
 );
 
--- 3. Aktifkan Row Level Security (RLS) & Berikan Akses Publik (Anon Key)
+-- 3. Buat Tabel Kelompok/Angkatan Ayam (Manajemen Usia & Prediksi Bertelur)
+CREATE TABLE IF NOT EXISTS public.kelompok_ayam (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  nama TEXT NOT NULL,
+  jumlah INTEGER NOT NULL CHECK (jumlah > 0),
+  umur_minggu INTEGER NOT NULL CHECK (umur_minggu >= 0),
+  tanggal_mulai DATE DEFAULT CURRENT_DATE NOT NULL,
+  jenis_ras TEXT DEFAULT 'Ayam Petelur Coklat (Layer)',
+  catatan TEXT DEFAULT ''
+);
+
+-- 4. Aktifkan Row Level Security (RLS) & Berikan Akses Publik (Anon Key)
 ALTER TABLE public.catatan_ayam ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.catatan_ikan ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.kelompok_ayam ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Akses Publik Penuh Catatan Ayam" 
   ON public.catatan_ayam 
@@ -52,9 +65,17 @@ CREATE POLICY "Akses Publik Penuh Catatan Ikan"
   USING (true) 
   WITH CHECK (true);
 
--- 4. PENTING: Aktifkan Real-Time Supabase (onpostgreschanges)
+CREATE POLICY "Akses Publik Penuh Kelompok Ayam" 
+  ON public.kelompok_ayam 
+  FOR ALL 
+  TO anon, authenticated 
+  USING (true) 
+  WITH CHECK (true);
+
+-- 5. PENTING: Aktifkan Real-Time Supabase (onpostgreschanges)
 ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ayam;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.kelompok_ayam;
 `;
 
 export const SUPABASE_STEPS = [

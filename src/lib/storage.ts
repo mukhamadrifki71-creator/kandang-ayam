@@ -1,101 +1,39 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { CatatanAyam, CatatanIkan, KelompokAyam, SupabaseConfig } from '../types';
+import { LOCKED_SUPABASE_CONFIG } from './supabaseConfig';
 
 const CONFIG_KEY = 'ternakku_supabase_config';
-const LOCAL_AYAM_KEY = 'ternakku_local_ayam';
-const LOCAL_IKAN_KEY = 'ternakku_local_ikan';
-const LOCAL_KELOMPOK_KEY = 'ternakku_local_kelompok_ayam';
 
-export const INITIAL_AYAM_DATA: CatatanAyam[] = [
-  {
-    id: 'ayam-1',
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-    tanggal: new Date(Date.now() - 86400000 * 2).toISOString().slice(0, 10),
-    jenis_ayam: 'Ayam Petelur Coklat (Layer)',
-    jumlah_ayam: 7,
-    pakan_kg: 0.8,
-    jumlah_telur: 0,
-    usia_minggu: 15,
-    kelompok_nama: 'Kelompok Ayam Utama (7 Ekor)',
-    catatan: 'Usia 15 minggu, fase dara (pullet) aktif dan sehat, transisi pakan pre-lay',
-  },
-  {
-    id: 'ayam-2',
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    tanggal: new Date(Date.now() - 86400000).toISOString().slice(0, 10),
-    jenis_ayam: 'Ayam Petelur Coklat (Layer)',
-    jumlah_ayam: 7,
-    pakan_kg: 0.85,
-    jumlah_telur: 0,
-    usia_minggu: 15,
-    kelompok_nama: 'Kelompok Ayam Utama (7 Ekor)',
-    catatan: 'Kandang bersih, nafsu makan sangat baik, persiapan kotak sarang bertelur',
-  },
-  {
-    id: 'ayam-3',
-    created_at: new Date().toISOString(),
-    tanggal: new Date().toISOString().slice(0, 10),
-    jenis_ayam: 'Ayam Petelur Coklat (Layer)',
-    jumlah_ayam: 7,
-    pakan_kg: 0.85,
-    jumlah_telur: 0,
-    usia_minggu: 15,
-    kelompok_nama: 'Kelompok Ayam Utama (7 Ekor)',
-    catatan: 'Kondisi lincah, diprediksi mulai bertelur di umur 18 minggu (~3 minggu lagi)',
-  },
-];
-
-export const INITIAL_IKAN_DATA: CatatanIkan[] = [
-  {
-    id: 'ikan-1',
-    created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-    tanggal: new Date(Date.now() - 86400000 * 3).toISOString().slice(0, 10),
-    nama_kolam: 'Kolam Bioflok 1',
-    jenis_ikan: 'Nila Merah',
-    jumlah_ikan: 500,
-    pakan_kg: 4.5,
-    jadwal_kuras: new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10),
-    status_air: 'Bersih',
-    catatan: 'Air warna hijau stabil, aerator lancar',
-  },
-  {
-    id: 'ikan-2',
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    tanggal: new Date(Date.now() - 86400000).toISOString().slice(0, 10),
-    nama_kolam: 'Kolam Terpal 2',
-    jenis_ikan: 'Lele Sangkuriang',
-    jumlah_ikan: 800,
-    pakan_kg: 6.0,
-    jadwal_kuras: new Date().toISOString().slice(0, 10),
-    status_air: 'Perlu Kuras',
-    catatan: 'Jadwal kuras hari ini (30% air bawah)',
-  },
-];
-
-export const INITIAL_KELOMPOK_AYAM: KelompokAyam[] = [
-  {
-    id: 'kelompok-1',
-    nama: 'Kelompok Ayam Utama',
-    jumlah: 7,
-    umur_minggu: 15,
-    tanggal_mulai: new Date().toISOString().slice(0, 10),
-    jenis_ras: 'Ayam Petelur Coklat (Layer)',
-    catatan: '7 ekor ayam sehat, tinggal ~3 minggu lagi memasuki usia bertelur',
-    created_at: new Date().toISOString(),
-  },
-];
+// Bersihkan cache / mock lokal lama di browser agar data murni dari Supabase
+try {
+  localStorage.removeItem('ternakku_local_ayam');
+  localStorage.removeItem('ternakku_local_ikan');
+  localStorage.removeItem('ternakku_local_kelompok_ayam');
+  localStorage.removeItem('demo_ayam');
+  localStorage.removeItem('demo_ikan');
+} catch {
+  // abaikan error jika storage dibatasi
+}
 
 // ---------------------------------------------------------------------------
-// Konfigurasi Supabase Client
+// Konfigurasi Supabase Client (Terkunci & Permanen)
 // ---------------------------------------------------------------------------
+
 export function getStoredConfig(): SupabaseConfig {
   try {
     const raw = localStorage.getItem(CONFIG_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.url && parsed.anonKey) {
+        return parsed;
+      }
+    }
   } catch (e) {
     console.error('Gagal membaca konfigurasi Supabase dari storage', e);
   }
-  return { url: '', anonKey: '' };
+
+  // Gunakan kredensial terkunci jika tersedia
+  return LOCKED_SUPABASE_CONFIG;
 }
 
 export function saveStoredConfig(config: SupabaseConfig): void {
@@ -127,26 +65,24 @@ export function getSupabaseClient(config?: SupabaseConfig): SupabaseClient | nul
 }
 
 // ---------------------------------------------------------------------------
-// OPERASI CATATAN AYAM (Direct Supabase)
+// OPERASI CATATAN AYAM (Murni Supabase)
 // ---------------------------------------------------------------------------
 
-/**
- * Mengambil seluruh riwayat catatan ayam langsung dari Supabase
- */
-export async function fetchCatatanAyam(): Promise<CatatanAyam[]> {
-  const client = getSupabaseClient();
+export async function fetchCatatanAyam(clientOverride?: SupabaseClient): Promise<CatatanAyam[]> {
+  const client = clientOverride || getSupabaseClient();
   if (!client) {
-    throw new Error('Supabase belum terhubung. Silakan masukkan Supabase URL & Key terlebih dahulu.');
+    throw new Error('Supabase belum terhubung. Silakan masukkan Supabase URL & Anon Key terlebih dahulu.');
   }
 
   const { data, error } = await client
     .from('catatan_ayam')
     .select('*')
-    .order('tanggal', { ascending: false });
+    .order('tanggal', { ascending: false })
+    .order('created_at', { ascending: false });
 
   if (error) {
     console.error('Gagal mengambil catatan ayam dari Supabase:', error);
-    throw new Error(`Gagal mengambil data: ${error.message}`);
+    throw new Error(`Gagal mengambil data ayam: ${error.message}`);
   }
 
   return (data || []).map((item) => ({
@@ -157,59 +93,64 @@ export async function fetchCatatanAyam(): Promise<CatatanAyam[]> {
     jumlah_ayam: Number(item.jumlah_ayam || 0),
     pakan_kg: Number(item.pakan_kg || 0),
     jumlah_telur: Number(item.jumlah_telur || 0),
-    usia_minggu: Number(item.usia_minggu || 0), // <--- Kolom Usia Minggu
-    kelompok_nama: item.kelompok_nama || item.kelompok_id || '',
+    usia_minggu: item.usia_minggu !== undefined && item.usia_minggu !== null ? Number(item.usia_minggu) : undefined,
+    kelompok_id: item.kelompok_id,
+    kelompok_nama: item.kelompok_nama || '',
     catatan: item.catatan || '',
   }));
 }
 
-/**
- * Menyimpan catatan ayam baru langsung ke Supabase
- */
-export async function saveCatatanAyam(catatan: Omit<CatatanAyam, 'id' | 'created_at'>) {
-  const client = getSupabaseClient();
+export async function saveCatatanAyam(catatan: Omit<CatatanAyam, 'id' | 'created_at'>, clientOverride?: SupabaseClient) {
+  const client = clientOverride || getSupabaseClient();
   if (!client) {
     throw new Error('Supabase belum terhubung.');
   }
 
-  const { data, error } = await client
-    .from('catatan_ayam')
-    .insert([
-      {
-        tanggal: catatan.tanggal,
-        jenis_ayam: catatan.jenis_ayam,
-        jumlah_ayam: catatan.jumlah_ayam,
-        pakan_kg: catatan.pakan_kg,
-        jumlah_telur: catatan.jumlah_telur,
-        usia_minggu: catatan.usia_minggu, // <--- Menyimpan Usia ke Supabase
-        kelompok_nama: catatan.kelompok_nama,
-        catatan: catatan.catatan,
-      },
-    ])
-    .select();
+  const ageTag =
+    typeof catatan.usia_minggu === 'number'
+      ? `[Usia: ${catatan.usia_minggu} Minggu${catatan.kelompok_nama ? ` | ${catatan.kelompok_nama}` : ''}] `
+      : '';
+  const formattedCatatan = (ageTag + (catatan.catatan || '')).trim();
 
-  if (error) {
-    console.error('Gagal menyimpan catatan ayam ke Supabase:', error);
-    throw new Error(`Gagal menyimpan: ${error.message}`);
+  let insertPayload: Record<string, unknown> = {
+    tanggal: catatan.tanggal,
+    jumlah_ayam: catatan.jumlah_ayam,
+    pakan_kg: catatan.pakan_kg,
+    jumlah_telur: catatan.jumlah_telur,
+    usia_minggu: catatan.usia_minggu,
+    kelompok_nama: catatan.kelompok_nama,
+    catatan: formattedCatatan,
+  };
+
+  let res = await client.from('catatan_ayam').insert([insertPayload]).select();
+
+  // Fallback jika kolom usia_minggu / kelompok_nama belum ada di skema Supabase
+  if (res.error && res.error.code === 'PGRST204') {
+    const fallbackPayload = {
+      tanggal: catatan.tanggal,
+      jumlah_ayam: catatan.jumlah_ayam,
+      pakan_kg: catatan.pakan_kg,
+      jumlah_telur: catatan.jumlah_telur,
+      catatan: formattedCatatan,
+    };
+    res = await client.from('catatan_ayam').insert([fallbackPayload]).select();
   }
 
-  return data;
+  if (res.error) {
+    console.error('Gagal menyimpan catatan ayam ke Supabase:', res.error);
+    throw new Error(`Gagal menyimpan ke Supabase: ${res.error.message}`);
+  }
+
+  return res.data && res.data[0] ? res.data[0] : null;
 }
 
-/**
- * Menghapus catatan ayam berdasarkan ID dari Supabase
- */
-export async function deleteCatatanAyam(id: string): Promise<void> {
-  const client = getSupabaseClient();
+export async function deleteCatatanAyam(id: string, clientOverride?: SupabaseClient): Promise<void> {
+  const client = clientOverride || getSupabaseClient();
   if (!client) {
     throw new Error('Supabase belum terhubung.');
   }
 
-  const { error } = await client
-    .from('catatan_ayam')
-    .delete()
-    .eq('id', id);
-
+  const { error } = await client.from('catatan_ayam').delete().eq('id', id);
   if (error) {
     console.error('Gagal menghapus catatan ayam dari Supabase:', error);
     throw new Error(`Gagal menghapus: ${error.message}`);
@@ -217,17 +158,80 @@ export async function deleteCatatanAyam(id: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// OPERASI KELOMPOK / BATCH AYAM (Direct Supabase)
+// OPERASI CATATAN IKAN (Murni Supabase)
 // ---------------------------------------------------------------------------
 
-/**
- * Mengambil daftar kelompok ayam dari Supabase
- */
-export async function fetchKelompokAyam(): Promise<KelompokAyam[]> {
-  const client = getSupabaseClient();
+export async function fetchCatatanIkan(clientOverride?: SupabaseClient): Promise<CatatanIkan[]> {
+  const client = clientOverride || getSupabaseClient();
   if (!client) {
     throw new Error('Supabase belum terhubung.');
   }
+
+  const { data, error } = await client
+    .from('catatan_ikan')
+    .select('*')
+    .order('tanggal', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Gagal mengambil data ikan dari Supabase:', error);
+    throw new Error(`Gagal mengambil data kolam: ${error.message}`);
+  }
+
+  return (data || []).map((item) => ({
+    id: String(item.id),
+    created_at: item.created_at,
+    tanggal: item.tanggal,
+    nama_kolam: item.nama_kolam,
+    jenis_ikan: item.jenis_ikan,
+    jumlah_ikan: Number(item.jumlah_ikan || 0),
+    pakan_kg: Number(item.pakan_kg || 0),
+    jadwal_kuras: item.jadwal_kuras,
+    status_air: item.status_air || 'Bersih',
+    catatan: item.catatan || '',
+  }));
+}
+
+export async function saveCatatanIkan(kolam: Omit<CatatanIkan, 'id' | 'created_at'>, clientOverride?: SupabaseClient) {
+  const client = clientOverride || getSupabaseClient();
+  if (!client) {
+    throw new Error('Supabase belum terhubung.');
+  }
+
+  let res = await client.from('catatan_ikan').insert([kolam]).select();
+  if (res.error && res.error.code === 'PGRST204' && res.error.message?.includes('status_air')) {
+    const { status_air, ...rest } = kolam;
+    res = await client.from('catatan_ikan').insert([rest]).select();
+  }
+
+  if (res.error) {
+    console.error('Gagal menyimpan kolam ke Supabase:', res.error);
+    throw new Error(`Gagal menyimpan kolam: ${res.error.message}`);
+  }
+
+  return res.data && res.data[0] ? res.data[0] : null;
+}
+
+export async function deleteCatatanIkan(id: string, clientOverride?: SupabaseClient): Promise<void> {
+  const client = clientOverride || getSupabaseClient();
+  if (!client) {
+    throw new Error('Supabase belum terhubung.');
+  }
+
+  const { error } = await client.from('catatan_ikan').delete().eq('id', id);
+  if (error) {
+    console.error('Gagal menghapus catatan ikan dari Supabase:', error);
+    throw new Error(`Gagal menghapus kolam: ${error.message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// OPERASI KELOMPOK / BATCH AYAM (Murni Supabase)
+// ---------------------------------------------------------------------------
+
+export async function fetchKelompokAyam(clientOverride?: SupabaseClient): Promise<KelompokAyam[]> {
+  const client = clientOverride || getSupabaseClient();
+  if (!client) return [];
 
   const { data, error } = await client
     .from('kelompok_ayam')
@@ -235,27 +239,25 @@ export async function fetchKelompokAyam(): Promise<KelompokAyam[]> {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Gagal mengambil kelompok ayam dari Supabase:', error);
-    throw new Error(`Gagal mengambil kelompok: ${error.message}`);
+    // Jika tabel kelompok_ayam belum dibuat di Supabase, kembalikan array kosong tanpa crash
+    console.warn('Tabel kelompok_ayam belum tersedia di Supabase:', error.message);
+    return [];
   }
 
   return (data || []).map((item) => ({
     id: String(item.id),
     nama: item.nama,
     jumlah: Number(item.jumlah || item.jumlah_ekor || 0),
-    umur_minggu: Number(item.umur_minggu || item.usia_minggu || 0), // <--- Kolom Usia Minggu
+    umur_minggu: Number(item.umur_minggu || item.usia_minggu || 0),
     tanggal_mulai: item.tanggal_mulai,
-    jenis_ras: item.jenis_ras,
+    jenis_ras: item.jenis_ras || 'Ayam Petelur Coklat (Layer)',
     catatan: item.catatan || item.keterangan || '',
     created_at: item.created_at,
   }));
 }
 
-/**
- * Menyimpan kelompok/batch ayam baru ke Supabase
- */
-export async function saveKelompokAyam(kelompok: Omit<KelompokAyam, 'id' | 'created_at'>) {
-  const client = getSupabaseClient();
+export async function saveKelompokAyam(kelompok: Omit<KelompokAyam, 'id' | 'created_at'>, clientOverride?: SupabaseClient) {
+  const client = clientOverride || getSupabaseClient();
   if (!client) {
     throw new Error('Supabase belum terhubung.');
   }
@@ -266,7 +268,7 @@ export async function saveKelompokAyam(kelompok: Omit<KelompokAyam, 'id' | 'crea
       {
         nama: kelompok.nama,
         jumlah: kelompok.jumlah,
-        umur_minggu: kelompok.umur_minggu, // <--- Menyimpan Usia ke Supabase
+        umur_minggu: kelompok.umur_minggu,
         tanggal_mulai: kelompok.tanggal_mulai,
         jenis_ras: kelompok.jenis_ras,
         catatan: kelompok.catatan,
@@ -276,26 +278,39 @@ export async function saveKelompokAyam(kelompok: Omit<KelompokAyam, 'id' | 'crea
 
   if (error) {
     console.error('Gagal menyimpan kelompok ayam ke Supabase:', error);
-    throw new Error(`Gagal menyimpan kelompok: ${error.message}`);
+    throw new Error(`Gagal menyimpan kelompok ayam: ${error.message}`);
   }
 
-  return data;
+  return data && data[0] ? data[0] : null;
 }
 
-/**
- * Menghapus kelompok ayam berdasarkan ID dari Supabase
- */
-export async function deleteKelompokAyam(id: string): Promise<void> {
-  const client = getSupabaseClient();
+export async function updateKelompokAyam(id: string, updates: Partial<KelompokAyam>, clientOverride?: SupabaseClient) {
+  const client = clientOverride || getSupabaseClient();
   if (!client) {
     throw new Error('Supabase belum terhubung.');
   }
 
-  const { error } = await client
+  const { data, error } = await client
     .from('kelompok_ayam')
-    .delete()
-    .eq('id', id);
+    .update(updates)
+    .eq('id', id)
+    .select();
 
+  if (error) {
+    console.error('Gagal memperbarui kelompok ayam di Supabase:', error);
+    throw new Error(`Gagal memperbarui kelompok: ${error.message}`);
+  }
+
+  return data && data[0] ? data[0] : null;
+}
+
+export async function deleteKelompokAyam(id: string, clientOverride?: SupabaseClient): Promise<void> {
+  const client = clientOverride || getSupabaseClient();
+  if (!client) {
+    throw new Error('Supabase belum terhubung.');
+  }
+
+  const { error } = await client.from('kelompok_ayam').delete().eq('id', id);
   if (error) {
     console.error('Gagal menghapus kelompok ayam dari Supabase:', error);
     throw new Error(`Gagal menghapus kelompok: ${error.message}`);
@@ -303,61 +318,23 @@ export async function deleteKelompokAyam(id: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// OPERASI LOCAL STORAGE (Offline / Demo Fallback)
+// STUB PENGGANTI (Tanpa Mock Data Palsu / Tanpa Cache Dummy)
 // ---------------------------------------------------------------------------
+export const INITIAL_AYAM_DATA: CatatanAyam[] = [];
+export const INITIAL_IKAN_DATA: CatatanIkan[] = [];
+export const INITIAL_KELOMPOK_AYAM: KelompokAyam[] = [];
 
 export function getLocalAyam(): CatatanAyam[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_AYAM_KEY);
-    if (raw) {
-      const parsed: CatatanAyam[] = JSON.parse(raw);
-      return parsed.map((item) => ({
-        ...item,
-        jenis_ayam: item.jenis_ayam || 'Ayam Petelur Coklat (Layer)',
-      }));
-    }
-  } catch (e) {
-    console.error('Gagal membaca data ayam lokal:', e);
-  }
-  localStorage.setItem(LOCAL_AYAM_KEY, JSON.stringify(INITIAL_AYAM_DATA));
-  return INITIAL_AYAM_DATA;
+  return [];
 }
-
-export function saveLocalAyam(data: CatatanAyam[]): void {
-  localStorage.setItem(LOCAL_AYAM_KEY, JSON.stringify(data));
-}
+export function saveLocalAyam(_data: CatatanAyam[]): void {}
 
 export function getLocalIkan(): CatatanIkan[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_IKAN_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    console.error('Gagal membaca data ikan lokal:', e);
-  }
-  localStorage.setItem(LOCAL_IKAN_KEY, JSON.stringify(INITIAL_IKAN_DATA));
-  return INITIAL_IKAN_DATA;
+  return [];
 }
-
-export function saveLocalIkan(data: CatatanIkan[]): void {
-  localStorage.setItem(LOCAL_IKAN_KEY, JSON.stringify(data));
-}
+export function saveLocalIkan(_data: CatatanIkan[]): void {}
 
 export function getLocalKelompokAyam(): KelompokAyam[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_KELOMPOK_KEY);
-    if (raw) {
-      const parsed: KelompokAyam[] = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Gagal membaca kelompok ayam lokal:', e);
-  }
-  localStorage.setItem(LOCAL_KELOMPOK_KEY, JSON.stringify(INITIAL_KELOMPOK_AYAM));
-  return INITIAL_KELOMPOK_AYAM;
+  return [];
 }
-
-export function saveLocalKelompokAyam(data: KelompokAyam[]): void {
-  localStorage.setItem(LOCAL_KELOMPOK_KEY, JSON.stringify(data));
-}
+export function saveLocalKelompokAyam(_data: KelompokAyam[]): void {}

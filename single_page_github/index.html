@@ -221,9 +221,15 @@
             </div>
           </div>
 
-          <div>
-            <label class="block text-xs font-bold text-slate-600 mb-1">Catatan Tambahan (Opsional)</label>
-            <input type="text" id="ayam-catatan" placeholder="Contoh: Ayam sehat, nafsu makan bagus, cuaca cerah..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Jenis / Ras Ayam (Opsional)</label>
+              <input type="text" id="ayam-jenis" value="Ayam Petelur" placeholder="Contoh: Ayam Petelur, Isa Brown, KUB" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Catatan Tambahan (Opsional)</label>
+              <input type="text" id="ayam-catatan" placeholder="Contoh: Ayam sehat, nafsu makan bagus..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
           </div>
 
           <div class="flex justify-end">
@@ -252,6 +258,7 @@
             <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-semibold border-b border-slate-200">
               <tr>
                 <th class="px-4 py-3">Tanggal</th>
+                <th class="px-4 py-3">Jenis Ayam</th>
                 <th class="px-4 py-3 text-right">Populasi</th>
                 <th class="px-4 py-3 text-right">Pakan (Kg)</th>
                 <th class="px-4 py-3 text-right">Telur (Butir)</th>
@@ -558,8 +565,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
 
     // Default configuration (can be preset or loaded from localStorage)
     let config = {
-      url: localStorage.getItem('ternakku_sp_url') || '',
-      key: localStorage.getItem('ternakku_sp_key') || ''
+      url: localStorage.getItem('ternakku_sp_url') || '${defaultUrl}',
+      key: localStorage.getItem('ternakku_sp_key') || '${defaultKey}'
     };
 
     // --- INITIALIZATION ---
@@ -567,7 +574,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
       // Set default date inputs to today
       const today = new Date().toISOString().slice(0, 10);
       document.getElementById('ayam-tanggal').value = today;
-      // Default tanggal masuk 60 hari lalu (pullet fase bertelur)
+      // Default tanggal masuk 60 hari lalu
       const defaultMasuk = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
       document.getElementById('ayam-tanggal-masuk').value = defaultMasuk;
       // Jadwal kuras default 5 hari dari sekarang
@@ -640,6 +647,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
       let actionText = '';
 
       if (eventType === 'INSERT') {
+        // Cek jika belum ada di list
         if (!ayamList.some(item => item.id === newRecord.id)) {
           ayamList.unshift(newRecord);
         }
@@ -700,29 +708,16 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
     }
 
     function loadDataFromLocalStorage() {
-      const localAyam = localStorage.getItem('demo_ayam');
-      const localIkan = localStorage.getItem('demo_ikan');
+      // Hapus cache demo lama agar data murni dari database Supabase
+      try {
+        localStorage.removeItem('demo_ayam');
+        localStorage.removeItem('demo_ikan');
+        localStorage.removeItem('ternakku_local_ayam');
+        localStorage.removeItem('ternakku_local_ikan');
+      } catch (e) {}
 
-      if (localAyam) {
-        ayamList = JSON.parse(localAyam);
-      } else {
-        ayamList = [
-          { id: '1', tanggal: new Date().toISOString().slice(0, 10), jumlah_ayam: 120, pakan_kg: 15.0, jumlah_telur: 102, catatan: 'Kondisi ayam sehat' },
-          { id: '2', tanggal: new Date(Date.now() - 86400000).toISOString().slice(0, 10), jumlah_ayam: 120, pakan_kg: 14.8, jumlah_telur: 98, catatan: 'Pakan habis bersih' }
-        ];
-        localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
-      }
-
-      if (localIkan) {
-        ikanList = JSON.parse(localIkan);
-      } else {
-        ikanList = [
-          { id: '1', tanggal: new Date().toISOString().slice(0, 10), nama_kolam: 'Kolam Bioflok A1', jenis_ikan: 'Nila Merah', jumlah_ikan: 500, pakan_kg: 4.5, jadwal_kuras: new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10), status_air: 'Bersih', catatan: 'Air warna hijau stabil' },
-          { id: '2', tanggal: new Date().toISOString().slice(0, 10), nama_kolam: 'Kolam Terpal B1', jenis_ikan: 'Lele Sangkuriang', jumlah_ikan: 800, pakan_kg: 6.0, jadwal_kuras: new Date().toISOString().slice(0, 10), status_air: 'Perlu Kuras', catatan: 'Jadwal kuras dasar hari ini' }
-        ];
-        localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
-      }
-
+      ayamList = [];
+      ikanList = [];
       renderAyam();
       renderIkan();
     }
@@ -736,6 +731,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
 
       const data = {
         tanggal: document.getElementById('ayam-tanggal').value,
+        jenis_ayam: (document.getElementById('ayam-jenis') && document.getElementById('ayam-jenis').value.trim()) || 'Ayam Petelur',
         jumlah_ayam: parseInt(document.getElementById('ayam-jumlah').value, 10) || 0,
         pakan_kg: parseFloat(document.getElementById('ayam-pakan').value) || 0,
         jumlah_telur: parseInt(document.getElementById('ayam-telur').value, 10) || 0,
@@ -744,20 +740,24 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
 
       if (supabase) {
         try {
-          const { error } = await supabase.from('catatan_ayam').insert([data]);
-          if (error) throw error;
+          let res = await supabase.from('catatan_ayam').insert([data]);
+          if (res.error && (res.error.code === 'PGRST204' || (res.error.message && res.error.message.includes('jenis_ayam')))) {
+            const fallback = { ...data };
+            delete fallback.jenis_ayam;
+            if (data.jenis_ayam && data.jenis_ayam !== 'Ayam Petelur') {
+              fallback.catatan = ('[' + data.jenis_ayam + '] ' + (fallback.catatan || '')).trim();
+            }
+            res = await supabase.from('catatan_ayam').insert([fallback]);
+          }
+          if (res.error) throw res.error;
           resetAyamForm();
           showToast('Catatan ayam tersimpan ke Supabase!');
         } catch (err) {
           showToast('Gagal menyimpan ke Supabase: ' + err.message);
         }
       } else {
-        data.id = 'demo-' + Date.now();
-        ayamList.unshift(data);
-        localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
-        renderAyam();
-        resetAyamForm();
-        showToast('Catatan tersimpan di mode lokal!');
+        openConfigModal();
+        showToast('Kunci kredensial Supabase Anda untuk menyimpan data ke database.');
       }
 
       btn.disabled = false;
@@ -790,19 +790,21 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
 
       if (supabase) {
         try {
-          const { error } = await supabase.from('catatan_ikan').insert([data]);
-          if (error) throw error;
+          let res = await supabase.from('catatan_ikan').insert([data]);
+          if (res.error && res.error.code === 'PGRST204' && res.error.message.includes('status_air')) {
+            const fallback = { ...data };
+            delete fallback.status_air;
+            res = await supabase.from('catatan_ikan').insert([fallback]);
+          }
+          if (res.error) throw res.error;
           resetIkanForm();
+          showToast('Catatan kolam tersimpan ke Supabase!');
         } catch (err) {
-          alert('Gagal menyimpan ke Supabase: ' + err.message);
+          showToast('Gagal menyimpan kolam: ' + err.message);
         }
       } else {
-        data.id = 'demo-' + Date.now();
-        ikanList.unshift(data);
-        localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
-        renderIkan();
-        resetIkanForm();
-        showToast('Catatan kolam tersimpan di mode lokal!');
+        openConfigModal();
+        showToast('Kunci kredensial Supabase Anda untuk menyimpan kolam ke database.');
       }
 
       btn.disabled = false;
@@ -818,58 +820,56 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
     }
 
     async function hapusAyam(id) {
+      if (!supabase) {
+        showToast('Supabase belum terhubung.');
+        return;
+      }
       const previous = [...ayamList];
       ayamList = ayamList.filter(item => String(item.id) !== String(id));
-      localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
       renderAyam();
-      showToast('Catatan ayam berhasil dihapus!');
 
-      const isLocalOnly = typeof id === 'string' && (id.startsWith('ayam-') || id.startsWith('demo-'));
-      if (supabase && !isLocalOnly) {
-        try {
-          const { error } = await supabase.from('catatan_ayam').delete().eq('id', id);
-          if (error) {
-            console.error('Error delete from Supabase:', error);
-            ayamList = previous;
-            localStorage.setItem('demo_ayam', JSON.stringify(previous));
-            renderAyam();
-            showToast('Gagal menghapus dari Supabase: ' + error.message);
-          }
-        } catch (err) {
-          console.error(err);
+      try {
+        const { error } = await supabase.from('catatan_ayam').delete().eq('id', id);
+        if (error) {
+          console.error('Error delete from Supabase:', error);
           ayamList = previous;
-          localStorage.setItem('demo_ayam', JSON.stringify(previous));
           renderAyam();
-          showToast('Terjadi kesalahan saat menghapus data.');
+          showToast('Gagal menghapus dari Supabase: ' + error.message);
+        } else {
+          showToast('Catatan ayam berhasil dihapus dari database!');
         }
+      } catch (err) {
+        console.error(err);
+        ayamList = previous;
+        renderAyam();
+        showToast('Terjadi kesalahan saat menghapus data.');
       }
     }
 
     async function hapusIkan(id) {
+      if (!supabase) {
+        showToast('Supabase belum terhubung.');
+        return;
+      }
       const previous = [...ikanList];
       ikanList = ikanList.filter(item => String(item.id) !== String(id));
-      localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
       renderIkan();
-      showToast('Data kolam ikan berhasil dihapus!');
 
-      const isLocalOnly = typeof id === 'string' && (id.startsWith('ikan-') || id.startsWith('demo-'));
-      if (supabase && !isLocalOnly) {
-        try {
-          const { error } = await supabase.from('catatan_ikan').delete().eq('id', id);
-          if (error) {
-            console.error('Error delete kolam from Supabase:', error);
-            ikanList = previous;
-            localStorage.setItem('demo_ikan', JSON.stringify(previous));
-            renderIkan();
-            showToast('Gagal menghapus kolam: ' + error.message);
-          }
-        } catch (err) {
-          console.error(err);
+      try {
+        const { error } = await supabase.from('catatan_ikan').delete().eq('id', id);
+        if (error) {
+          console.error('Error delete kolam from Supabase:', error);
           ikanList = previous;
-          localStorage.setItem('demo_ikan', JSON.stringify(previous));
           renderIkan();
-          showToast('Terjadi kesalahan saat menghapus kolam.');
+          showToast('Gagal menghapus kolam: ' + error.message);
+        } else {
+          showToast('Data kolam ikan berhasil dihapus dari database!');
         }
+      } catch (err) {
+        console.error(err);
+        ikanList = previous;
+        renderIkan();
+        showToast('Terjadi kesalahan saat menghapus data.');
       }
     }
 
@@ -887,6 +887,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
         return;
       }
 
+      // Latest record stats
       const latest = ayamList[0];
       document.getElementById('ayam-stat-populasi').innerText = latest.jumlah_ayam || 0;
       document.getElementById('ayam-stat-telur').innerText = latest.jumlah_telur || 0;
@@ -902,7 +903,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;`;
       const gramPerEkor = latest.jumlah_ayam > 0 ? (latest.pakan_kg * 1000) / latest.jumlah_ayam : 0;
       const deltaTelur = latest.jumlah_telur - prev.jumlah_telur;
 
-      // Prediksi Telur Besok (Moving Average + Trend Delta)
+      // Prediksi Telur Besok
       const sample = ayamList.slice(0, 3);
       const avgTelur = sample.reduce((acc, c) => acc + (c.jumlah_telur || 0), 0) / sample.length;
       const prediksiBesok = Math.max(0, Math.round(avgTelur + (deltaTelur > 0 ? 1 : deltaTelur < 0 ? -1 : 0)));

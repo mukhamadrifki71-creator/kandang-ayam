@@ -709,29 +709,16 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
     }
 
     function loadDataFromLocalStorage() {
-      const localAyam = localStorage.getItem('demo_ayam');
-      const localIkan = localStorage.getItem('demo_ikan');
+      // Hapus cache demo lama agar data murni dari database Supabase
+      try {
+        localStorage.removeItem('demo_ayam');
+        localStorage.removeItem('demo_ikan');
+        localStorage.removeItem('ternakku_local_ayam');
+        localStorage.removeItem('ternakku_local_ikan');
+      } catch (e) {}
 
-      if (localAyam) {
-        ayamList = JSON.parse(localAyam);
-      } else {
-        ayamList = [
-          { id: '1', tanggal: new Date().toISOString().slice(0, 10), jumlah_ayam: 120, pakan_kg: 15.0, jumlah_telur: 102, catatan: 'Kondisi ayam sehat' },
-          { id: '2', tanggal: new Date(Date.now() - 86400000).toISOString().slice(0, 10), jumlah_ayam: 120, pakan_kg: 14.8, jumlah_telur: 98, catatan: 'Pakan habis bersih' }
-        ];
-        localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
-      }
-
-      if (localIkan) {
-        ikanList = JSON.parse(localIkan);
-      } else {
-        ikanList = [
-          { id: '1', tanggal: new Date().toISOString().slice(0, 10), nama_kolam: 'Kolam Bioflok A1', jenis_ikan: 'Nila Merah', jumlah_ikan: 500, pakan_kg: 4.5, jadwal_kuras: new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10), status_air: 'Bersih', catatan: 'Air warna hijau stabil' },
-          { id: '2', tanggal: new Date().toISOString().slice(0, 10), nama_kolam: 'Kolam Terpal B1', jenis_ikan: 'Lele Sangkuriang', jumlah_ikan: 800, pakan_kg: 6.0, jadwal_kuras: new Date().toISOString().slice(0, 10), status_air: 'Perlu Kuras', catatan: 'Jadwal kuras dasar hari ini' }
-        ];
-        localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
-      }
-
+      ayamList = [];
+      ikanList = [];
       renderAyam();
       renderIkan();
     }
@@ -770,13 +757,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
           showToast('Gagal menyimpan ke Supabase: ' + err.message);
         }
       } else {
-        // Simpan ke local storage
-        data.id = 'demo-' + Date.now();
-        ayamList.unshift(data);
-        localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
-        renderAyam();
-        resetAyamForm();
-        showToast('Catatan tersimpan di mode lokal!');
+        openConfigModal();
+        showToast('Kunci kredensial Supabase Anda untuk menyimpan data ke database.');
       }
 
       btn.disabled = false;
@@ -822,12 +804,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
           showToast('Gagal menyimpan kolam: ' + err.message);
         }
       } else {
-        data.id = 'demo-' + Date.now();
-        ikanList.unshift(data);
-        localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
-        renderIkan();
-        resetIkanForm();
-        showToast('Catatan kolam tersimpan di mode lokal!');
+        openConfigModal();
+        showToast('Kunci kredensial Supabase Anda untuk menyimpan kolam ke database.');
       }
 
       btn.disabled = false;
@@ -843,58 +821,56 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.catatan_ikan;\`;
     }
 
     async function hapusAyam(id) {
+      if (!supabase) {
+        showToast('Supabase belum terhubung.');
+        return;
+      }
       const previous = [...ayamList];
       ayamList = ayamList.filter(item => String(item.id) !== String(id));
-      localStorage.setItem('demo_ayam', JSON.stringify(ayamList));
       renderAyam();
-      showToast('Catatan ayam berhasil dihapus!');
 
-      const isLocalOnly = typeof id === 'string' && (id.startsWith('ayam-') || id.startsWith('demo-'));
-      if (supabase && !isLocalOnly) {
-        try {
-          const { error } = await supabase.from('catatan_ayam').delete().eq('id', id);
-          if (error) {
-            console.error('Error delete from Supabase:', error);
-            ayamList = previous;
-            localStorage.setItem('demo_ayam', JSON.stringify(previous));
-            renderAyam();
-            showToast('Gagal menghapus dari Supabase: ' + error.message);
-          }
-        } catch (err) {
-          console.error(err);
+      try {
+        const { error } = await supabase.from('catatan_ayam').delete().eq('id', id);
+        if (error) {
+          console.error('Error delete from Supabase:', error);
           ayamList = previous;
-          localStorage.setItem('demo_ayam', JSON.stringify(previous));
           renderAyam();
-          showToast('Terjadi kesalahan saat menghapus data.');
+          showToast('Gagal menghapus dari Supabase: ' + error.message);
+        } else {
+          showToast('Catatan ayam berhasil dihapus dari database!');
         }
+      } catch (err) {
+        console.error(err);
+        ayamList = previous;
+        renderAyam();
+        showToast('Terjadi kesalahan saat menghapus data.');
       }
     }
 
     async function hapusIkan(id) {
+      if (!supabase) {
+        showToast('Supabase belum terhubung.');
+        return;
+      }
       const previous = [...ikanList];
       ikanList = ikanList.filter(item => String(item.id) !== String(id));
-      localStorage.setItem('demo_ikan', JSON.stringify(ikanList));
       renderIkan();
-      showToast('Data kolam ikan berhasil dihapus!');
 
-      const isLocalOnly = typeof id === 'string' && (id.startsWith('ikan-') || id.startsWith('demo-'));
-      if (supabase && !isLocalOnly) {
-        try {
-          const { error } = await supabase.from('catatan_ikan').delete().eq('id', id);
-          if (error) {
-            console.error('Error delete kolam from Supabase:', error);
-            ikanList = previous;
-            localStorage.setItem('demo_ikan', JSON.stringify(previous));
-            renderIkan();
-            showToast('Gagal menghapus kolam: ' + error.message);
-          }
-        } catch (err) {
-          console.error(err);
+      try {
+        const { error } = await supabase.from('catatan_ikan').delete().eq('id', id);
+        if (error) {
+          console.error('Error delete kolam from Supabase:', error);
           ikanList = previous;
-          localStorage.setItem('demo_ikan', JSON.stringify(previous));
           renderIkan();
-          showToast('Terjadi kesalahan saat menghapus kolam.');
+          showToast('Gagal menghapus kolam: ' + error.message);
+        } else {
+          showToast('Data kolam ikan berhasil dihapus dari database!');
         }
+      } catch (err) {
+        console.error(err);
+        ikanList = previous;
+        renderIkan();
+        showToast('Terjadi kesalahan saat menghapus data.');
       }
     }
 

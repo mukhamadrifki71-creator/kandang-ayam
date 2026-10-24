@@ -4,13 +4,18 @@ import {
   getStoredConfig,
   saveStoredConfig,
   getSupabaseClient,
-  getLocalAyam,
-  saveLocalAyam,
-  getLocalIkan,
-  saveLocalIkan,
-  getLocalKelompokAyam,
-  saveLocalKelompokAyam,
+  fetchCatatanAyam,
+  saveCatatanAyam,
+  deleteCatatanAyam,
+  fetchCatatanIkan,
+  saveCatatanIkan,
+  deleteCatatanIkan,
+  fetchKelompokAyam,
+  saveKelompokAyam,
+  updateKelompokAyam,
+  deleteKelompokAyam,
 } from './lib/storage';
+import { isSupabaseConfigured } from './lib/supabaseConfig';
 import { AyamSection } from './components/AyamSection';
 import { IkanSection } from './components/IkanSection';
 import { ConfigModal } from './components/ConfigModal';
@@ -20,24 +25,25 @@ import {
   Database,
   Download,
   Settings,
-  Sparkles,
-  Info,
-  Layers,
+  Lock,
   TrendingUp,
   X,
-  Fish,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'ayam' | 'ikan' | 'ringkasan'>('ayam');
-  const [config, setConfig] = useState<SupabaseConfig>(getStoredConfig());
+  const [config, setConfig] = useState<SupabaseConfig>(() => getStoredConfig());
   const [isConnected, setIsConnected] = useState(false);
   const [isRealtimeActive, setIsRealtimeActive] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
+  // Pure Supabase state: no fake/mock seeds
   const [ayamList, setAyamList] = useState<CatatanAyam[]>([]);
   const [ikanList, setIkanList] = useState<CatatanIkan[]>([]);
-  const [kelompokList, setKelompokList] = useState<KelompokAyam[]>(() => getLocalKelompokAyam());
+  const [kelompokList, setKelompokList] = useState<KelompokAyam[]>([]);
 
   // Modals state
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -56,123 +62,166 @@ export default function App() {
     }, 4500);
   };
 
-  // UUID validator to avoid invalid input syntax for type uuid when deleting local/demo records
-  const isUUID = (str: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-
-  // Channel ref for Supabase
+  // Realtime channel reference for Supabase
   const channelRef = useRef<RealtimeChannel | null>(null);
 
-  // Load data function
+  // Load initial data exclusively from Supabase
   const loadInitialData = useCallback(async (currentConfig: SupabaseConfig) => {
     const client = getSupabaseClient(currentConfig);
 
-    if (client) {
-      try {
-        const [resAyam, resIkan] = await Promise.all([
-          client
-            .from('catatan_ayam')
-            .select('*')
-            .order('tanggal', { ascending: false })
-            .order('created_at', { ascending: false }),
-          client
-            .from('catatan_ikan')
-            .select('*')
-            .order('tanggal', { ascending: false })
-            .order('created_at', { ascending: false }),
-        ]);
-
-        if (resAyam.error) throw resAyam.error;
-        if (resIkan.error) throw resIkan.error;
-
-        setAyamList(resAyam.data || []);
-        setIkanList(resIkan.data || []);
-        setIsConnected(true);
-        setIsRealtimeActive(true);
-
-        // Setup Real-time Postgres Changes
-        if (channelRef.current) {
-          client.removeChannel(channelRef.current);
-        }
-
-        const channel = client
-          .channel('schema-db-changes')
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'catatan_ayam' },
-            (payload) => {
-              if (payload.eventType === 'INSERT') {
-                const rec = payload.new as CatatanAyam;
-                const normRec: CatatanAyam = {
-                  ...rec,
-                  jenis_ayam: rec.jenis_ayam || 'Ayam Petelur',
-                };
-                setAyamList((prev) => {
-                  if (prev.some((x) => x.id === normRec.id)) return prev;
-                  return [normRec, ...prev];
-                });
-                triggerToast('⚡ Catatan ayam baru diterima secara real-time!');
-              } else if (payload.eventType === 'UPDATE') {
-                const rec = payload.new as CatatanAyam;
-                const normRec: CatatanAyam = {
-                  ...rec,
-                  jenis_ayam: rec.jenis_ayam || 'Ayam Petelur',
-                };
-                setAyamList((prev) =>
-                  prev.map((x) => (x.id === normRec.id ? normRec : x))
-                );
-                triggerToast('⚡ Catatan ayam diperbarui secara real-time!');
-              } else if (payload.eventType === 'DELETE') {
-                setAyamList((prev) =>
-                  prev.filter((x) => x.id !== (payload.old as { id: string }).id)
-                );
-                triggerToast('⚡ Catatan ayam dihapus!');
-              }
-            }
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'catatan_ikan' },
-            (payload) => {
-              if (payload.eventType === 'INSERT') {
-                setIkanList((prev) => {
-                  if (prev.some((x) => x.id === (payload.new as CatatanIkan).id)) return prev;
-                  return [payload.new as CatatanIkan, ...prev];
-                });
-                triggerToast('⚡ Kolam ikan baru diterima secara real-time!');
-              } else if (payload.eventType === 'UPDATE') {
-                setIkanList((prev) =>
-                  prev.map((x) =>
-                    x.id === (payload.new as CatatanIkan).id ? (payload.new as CatatanIkan) : x
-                  )
-                );
-                triggerToast('⚡ Data kolam ikan diperbarui secara real-time!');
-              } else if (payload.eventType === 'DELETE') {
-                setIkanList((prev) =>
-                  prev.filter((x) => x.id !== (payload.old as { id: string }).id)
-                );
-                triggerToast('⚡ Kolam ikan dihapus!');
-              }
-            }
-          )
-          .subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-              setIsRealtimeActive(true);
-            }
-          });
-
-        channelRef.current = channel;
-        return;
-      } catch (err) {
-        console.warn('Gagal memuat dari Supabase, beralih ke penyimpanan lokal:', err);
-      }
+    if (!client || !isSupabaseConfigured(currentConfig)) {
+      setIsConnected(false);
+      setIsRealtimeActive(false);
+      setAyamList([]);
+      setIkanList([]);
+      setKelompokList([]);
+      return;
     }
 
-    // Fallback: Local Storage
-    setIsConnected(false);
-    setIsRealtimeActive(false);
-    setAyamList(getLocalAyam());
-    setIkanList(getLocalIkan());
+    setIsLoadingData(true);
+    try {
+      const [resAyam, resIkan, resKelompok] = await Promise.all([
+        fetchCatatanAyam(client),
+        fetchCatatanIkan(client),
+        fetchKelompokAyam(client),
+      ]);
+
+      setAyamList(resAyam);
+      setIkanList(resIkan);
+      setKelompokList(resKelompok);
+      setIsConnected(true);
+      setIsRealtimeActive(true);
+
+      // Setup Real-time Postgres Changes for pure Supabase synchronization
+      if (channelRef.current) {
+        client.removeChannel(channelRef.current);
+      }
+
+      const channel = client
+        .channel('schema-db-changes')
+        // 1. Dengarkan perubahan catatan_ayam
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'catatan_ayam' },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              const rec = payload.new as CatatanAyam;
+              const normRec: CatatanAyam = {
+                ...rec,
+                id: String(rec.id),
+                jenis_ayam: rec.jenis_ayam || 'Ayam Petelur',
+              };
+              setAyamList((prev) => {
+                if (prev.some((x) => x.id === normRec.id)) return prev;
+                return [normRec, ...prev];
+              });
+              triggerToast('⚡ Catatan ayam baru diterima secara real-time!');
+            } else if (payload.eventType === 'UPDATE') {
+              const rec = payload.new as CatatanAyam;
+              const normRec: CatatanAyam = {
+                ...rec,
+                id: String(rec.id),
+                jenis_ayam: rec.jenis_ayam || 'Ayam Petelur',
+              };
+              setAyamList((prev) =>
+                prev.map((x) => (x.id === normRec.id ? normRec : x))
+              );
+              triggerToast('⚡ Catatan ayam diperbarui secara real-time!');
+            } else if (payload.eventType === 'DELETE') {
+              setAyamList((prev) =>
+                prev.filter((x) => x.id !== (payload.old as { id: string }).id)
+              );
+              triggerToast('⚡ Catatan ayam dihapus dari database!');
+            }
+          }
+        )
+        // 2. Dengarkan perubahan catatan_ikan
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'catatan_ikan' },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              const rec = payload.new as CatatanIkan;
+              const normRec: CatatanIkan = {
+                ...rec,
+                id: String(rec.id),
+              };
+              setIkanList((prev) => {
+                if (prev.some((x) => x.id === normRec.id)) return prev;
+                return [normRec, ...prev];
+              });
+              triggerToast('⚡ Kolam ikan baru diterima secara real-time!');
+            } else if (payload.eventType === 'UPDATE') {
+              const rec = payload.new as CatatanIkan;
+              const normRec: CatatanIkan = {
+                ...rec,
+                id: String(rec.id),
+              };
+              setIkanList((prev) =>
+                prev.map((x) => (x.id === normRec.id ? normRec : x))
+              );
+              triggerToast('⚡ Data kolam ikan diperbarui secara real-time!');
+            } else if (payload.eventType === 'DELETE') {
+              setIkanList((prev) =>
+                prev.filter((x) => x.id !== (payload.old as { id: string }).id)
+              );
+              triggerToast('⚡ Kolam ikan dihapus dari database!');
+            }
+          }
+        )
+        // 3. Dengarkan perubahan kelompok_ayam (Usia & Angkatan)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'kelompok_ayam' },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              const rec = payload.new as KelompokAyam;
+              const normRec: KelompokAyam = {
+                ...rec,
+                id: String(rec.id),
+              };
+              setKelompokList((prev) => {
+                if (prev.some((x) => x.id === normRec.id)) return prev;
+                return [normRec, ...prev];
+              });
+              triggerToast('⚡ Kelompok ayam baru diterima secara real-time!');
+            } else if (payload.eventType === 'UPDATE') {
+              const rec = payload.new as KelompokAyam;
+              const normRec: KelompokAyam = {
+                ...rec,
+                id: String(rec.id),
+              };
+              setKelompokList((prev) =>
+                prev.map((x) => (x.id === normRec.id ? normRec : x))
+              );
+              triggerToast('⚡ Data kelompok ayam diperbarui secara real-time!');
+            } else if (payload.eventType === 'DELETE') {
+              setKelompokList((prev) =>
+                prev.filter((x) => x.id !== (payload.old as { id: string }).id)
+              );
+              triggerToast('⚡ Kelompok ayam dihapus dari database!');
+            }
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            setIsRealtimeActive(true);
+          }
+        });
+
+      channelRef.current = channel;
+    } catch (err: unknown) {
+      console.error('Gagal memuat dari Supabase:', err);
+      setIsConnected(false);
+      setIsRealtimeActive(false);
+      setAyamList([]);
+      setIkanList([]);
+      setKelompokList([]);
+      const msg = err instanceof Error ? err.message : String(err);
+      triggerToast('Gagal memuat database Supabase: ' + msg);
+    } finally {
+      setIsLoadingData(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -185,202 +234,153 @@ export default function App() {
     };
   }, [config, loadInitialData]);
 
-  // Handle Save Supabase Config
+  // Handle Save & Lock Supabase Config
   const handleSaveConfig = (newConfig: SupabaseConfig) => {
     saveStoredConfig(newConfig);
     setConfig(newConfig);
     loadInitialData(newConfig);
     triggerToast(
-      newConfig.url ? 'Menghubungkan ke Supabase...' : 'Beralih ke mode demo lokal.'
+      newConfig.url
+        ? 'Kredensial Supabase berhasil dikunci & disimpan permanen!'
+        : 'Kredensial Supabase dikosongkan.'
     );
   };
 
-  // Add Ayam Record (Resilient: inserts age and group, fallbacks gracefully if schema missing columns)
+  // Add Ayam Record - Murni Supabase
   const handleAddAyam = async (record: Omit<CatatanAyam, 'id' | 'created_at'>) => {
     const client = getSupabaseClient(config);
+    if (!client || !isConnected) {
+      triggerToast('Supabase belum terhubung. Silakan kunci URL & Anon Key Supabase Anda.');
+      setIsConfigOpen(true);
+      return;
+    }
 
-    // Format catatan with age tag for backward compatibility
-    const ageTag =
-      typeof record.usia_minggu === 'number'
-        ? `[Usia: ${record.usia_minggu} Minggu${record.kelompok_nama ? ` | ${record.kelompok_nama}` : ''}] `
-        : '';
-    const formattedCatatan = (ageTag + (record.catatan || '')).trim();
-
-    if (client && isConnected) {
-      let insertPayload: Record<string, unknown> = {
-        tanggal: record.tanggal,
-        jumlah_ayam: record.jumlah_ayam,
-        pakan_kg: record.pakan_kg,
-        jumlah_telur: record.jumlah_telur,
-        usia_minggu: record.usia_minggu,
-        catatan: formattedCatatan,
-      };
-
-      let res = await client.from('catatan_ayam').insert([insertPayload]).select();
-
-      // If user's Supabase table doesn't have usia_minggu column yet (PGRST204), fallback to standard columns
-      if (res.error && res.error.code === 'PGRST204') {
-        const fallbackPayload = {
-          tanggal: record.tanggal,
-          jumlah_ayam: record.jumlah_ayam,
-          pakan_kg: record.pakan_kg,
-          jumlah_telur: record.jumlah_telur,
-          catatan: formattedCatatan,
+    try {
+      const insertedItem = await saveCatatanAyam(record, client);
+      if (insertedItem) {
+        const newItem: CatatanAyam = {
+          ...insertedItem,
+          id: String(insertedItem.id),
+          usia_minggu: record.usia_minggu,
+          kelompok_nama: record.kelompok_nama,
         };
-        res = await client.from('catatan_ayam').insert([fallbackPayload]).select();
+        setAyamList((prev) => {
+          if (prev.some((x) => x.id === newItem.id)) return prev;
+          return [newItem, ...prev];
+        });
+      } else {
+        const refreshed = await fetchCatatanAyam(client);
+        setAyamList(refreshed);
       }
-
-      if (res.error) {
-        triggerToast('Gagal menyimpan ke Supabase: ' + res.error.message);
-        throw res.error;
-      }
-
-      const insertedItem = res.data && res.data[0] ? res.data[0] : null;
-      const newItem: CatatanAyam = {
-        ...(insertedItem || record),
-        id: insertedItem?.id || 'ayam-' + Date.now(),
-        usia_minggu: record.usia_minggu,
-        kelompok_id: record.kelompok_id,
-        kelompok_nama: record.kelompok_nama,
-        created_at: insertedItem?.created_at || new Date().toISOString(),
-      };
-      setAyamList((prev) => {
-        if (prev.some((x) => x.id === newItem.id)) return prev;
-        return [newItem, ...prev];
-      });
-
       triggerToast('Catatan ayam beserta usia berhasil disimpan ke Supabase!');
-    } else {
-      // Local demo mode
-      const newItem: CatatanAyam = {
-        ...record,
-        id: 'ayam-' + Date.now(),
-        catatan: formattedCatatan,
-        created_at: new Date().toISOString(),
-      };
-      const updated = [newItem, ...ayamList];
-      setAyamList(updated);
-      saveLocalAyam(updated);
-      triggerToast('Catatan ayam & usia tersimpan (Mode Demo Lokal)!');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      triggerToast('Gagal menyimpan ke Supabase: ' + msg);
+      throw err;
     }
   };
 
-  // Delete Ayam Record (Optimistic UI Update + Supabase Sync)
+  // Delete Ayam Record - Murni Supabase
   const handleDeleteAyam = async (id: string) => {
-    const previous = [...ayamList];
-    const updated = ayamList.filter((item) => String(item.id) !== String(id));
-    setAyamList(updated);
-    saveLocalAyam(updated);
-    triggerToast('Catatan ayam berhasil dihapus.');
-
     const client = getSupabaseClient(config);
-    const isLocalOnly = typeof id === 'string' && (id.startsWith('ayam-') || id.startsWith('demo-'));
-    if (client && isConnected && !isLocalOnly) {
-      try {
-        const { error } = await client.from('catatan_ayam').delete().eq('id', id);
-        if (error) {
-          console.error('Error delete catatan_ayam from Supabase:', error);
-          setAyamList(previous);
-          saveLocalAyam(previous);
-          triggerToast('Gagal menghapus dari Supabase: ' + error.message);
-        }
-      } catch (err: unknown) {
-        console.error('Error delete catatan_ayam:', err);
-        setAyamList(previous);
-        saveLocalAyam(previous);
-        triggerToast('Terjadi kesalahan saat menghapus di database.');
-      }
+    if (!client || !isConnected) {
+      triggerToast('Supabase belum terhubung.');
+      return;
+    }
+
+    const previous = [...ayamList];
+    setAyamList((prev) => prev.filter((item) => String(item.id) !== String(id)));
+
+    try {
+      await deleteCatatanAyam(id, client);
+      triggerToast('Catatan ayam berhasil dihapus dari database Supabase.');
+    } catch (err: unknown) {
+      console.error('Error delete catatan_ayam from Supabase:', err);
+      setAyamList(previous);
+      const msg = err instanceof Error ? err.message : String(err);
+      triggerToast('Gagal menghapus dari Supabase: ' + msg);
     }
   };
 
-  // Add Ikan Record (Resilient against schema variations)
+  // Add Ikan Record - Murni Supabase
   const handleAddIkan = async (record: Omit<CatatanIkan, 'id' | 'created_at'>) => {
     const client = getSupabaseClient(config);
+    if (!client || !isConnected) {
+      triggerToast('Supabase belum terhubung. Silakan kunci URL & Anon Key Supabase Anda.');
+      setIsConfigOpen(true);
+      return;
+    }
 
-    if (client && isConnected) {
-      let res = await client.from('catatan_ikan').insert([record]).select();
-      if (res.error && res.error.code === 'PGRST204' && res.error.message?.includes('status_air')) {
-        const { status_air, ...rest } = record;
-        res = await client.from('catatan_ikan').insert([rest]).select();
+    try {
+      const insertedItem = await saveCatatanIkan(record, client);
+      if (insertedItem) {
+        const newItem: CatatanIkan = {
+          ...insertedItem,
+          id: String(insertedItem.id),
+        };
+        setIkanList((prev) => {
+          if (prev.some((x) => x.id === newItem.id)) return prev;
+          return [newItem, ...prev];
+        });
+      } else {
+        const refreshed = await fetchCatatanIkan(client);
+        setIkanList(refreshed);
       }
-      if (res.error) {
-        triggerToast('Gagal menyimpan kolam ke Supabase: ' + res.error.message);
-        throw res.error;
-      }
-      const insertedItem = res.data && res.data[0] ? res.data[0] : null;
-      const newItem: CatatanIkan = {
-        ...(insertedItem || record),
-        id: insertedItem?.id || 'ikan-' + Date.now(),
-        created_at: insertedItem?.created_at || new Date().toISOString(),
-      };
-      setIkanList((prev) => {
-        if (prev.some((x) => x.id === newItem.id)) return prev;
-        return [newItem, ...prev];
-      });
       triggerToast('Data kolam ikan berhasil disimpan ke Supabase!');
-    } else {
-      const newItem: CatatanIkan = {
-        ...record,
-        id: 'ikan-' + Date.now(),
-        created_at: new Date().toISOString(),
-      };
-      const updated = [newItem, ...ikanList];
-      setIkanList(updated);
-      saveLocalIkan(updated);
-      triggerToast('Data kolam tersimpan (Mode Demo Lokal)!');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      triggerToast('Gagal menyimpan kolam ke Supabase: ' + msg);
+      throw err;
     }
   };
 
-  // Delete Ikan Record (Optimistic UI Update + Supabase Sync)
+  // Delete Ikan Record - Murni Supabase
   const handleDeleteIkan = async (id: string) => {
-    const previous = [...ikanList];
-    const updated = ikanList.filter((item) => String(item.id) !== String(id));
-    setIkanList(updated);
-    saveLocalIkan(updated);
-    triggerToast('Data kolam ikan berhasil dihapus.');
-
     const client = getSupabaseClient(config);
-    const isLocalOnly = typeof id === 'string' && (id.startsWith('ikan-') || id.startsWith('demo-'));
-    if (client && isConnected && !isLocalOnly) {
-      try {
-        const { error } = await client.from('catatan_ikan').delete().eq('id', id);
-        if (error) {
-          console.error('Error delete catatan_ikan from Supabase:', error);
-          setIkanList(previous);
-          saveLocalIkan(previous);
-          triggerToast('Gagal menghapus kolam dari Supabase: ' + error.message);
-        }
-      } catch (err: unknown) {
-        console.error('Error delete catatan_ikan:', err);
-        setIkanList(previous);
-        saveLocalIkan(previous);
-        triggerToast('Terjadi kesalahan saat menghapus kolam di database.');
-      }
+    if (!client || !isConnected) {
+      triggerToast('Supabase belum terhubung.');
+      return;
+    }
+
+    const previous = [...ikanList];
+    setIkanList((prev) => prev.filter((item) => String(item.id) !== String(id)));
+
+    try {
+      await deleteCatatanIkan(id, client);
+      triggerToast('Data kolam ikan berhasil dihapus dari Supabase.');
+    } catch (err: unknown) {
+      console.error('Error delete catatan_ikan from Supabase:', err);
+      setIkanList(previous);
+      const msg = err instanceof Error ? err.message : String(err);
+      triggerToast('Gagal menghapus kolam dari Supabase: ' + msg);
     }
   };
 
   // Quick Action: Mark Fish Tank as Drained & Extend Next Drain by 7 days
   const handleQuickKuras = async (id: string) => {
-    const nextDate = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
     const client = getSupabaseClient(config);
+    if (!client || !isConnected) {
+      triggerToast('Supabase belum terhubung.');
+      return;
+    }
 
-    if (client && isConnected) {
-      const { error } = await client
-        .from('catatan_ikan')
-        .update({
-          jadwal_kuras: nextDate,
-          status_air: 'Bersih',
-          catatan: 'Air baru saja dikuras & diperbarui',
-        })
-        .eq('id', id);
+    const nextDate = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const { error } = await client
+      .from('catatan_ikan')
+      .update({
+        jadwal_kuras: nextDate,
+        status_air: 'Bersih',
+        catatan: 'Air baru saja dikuras & diperbarui',
+      })
+      .eq('id', id);
 
-      if (error) {
-        alert('Gagal update kuras air: ' + error.message);
-        return;
-      }
-      triggerToast('Air kolam telah dikuras & jadwal diperpanjang 7 hari!');
-    } else {
-      const updated = ikanList.map((item) =>
+    if (error) {
+      triggerToast('Gagal update kuras air: ' + error.message);
+      return;
+    }
+
+    setIkanList((prev) =>
+      prev.map((item) =>
         item.id === id
           ? {
               ...item,
@@ -389,38 +389,67 @@ export default function App() {
               catatan: 'Air baru saja dikuras & diperbarui',
             }
           : item
-      );
-      setIkanList(updated);
-      saveLocalIkan(updated);
-      triggerToast('Air kolam telah dikuras & jadwal diperpanjang 7 hari!');
+      )
+    );
+    triggerToast('Air kolam telah dikuras & jadwal diperpanjang 7 hari di Supabase!');
+  };
+
+  // Kelompok Ayam Handlers (Murni Supabase)
+  const handleAddKelompok = async (data: Omit<KelompokAyam, 'id' | 'created_at'>) => {
+    const client = getSupabaseClient(config);
+    if (!client || !isConnected) {
+      triggerToast('Supabase belum terhubung. Silakan konfigurasi kredensial Supabase.');
+      setIsConfigOpen(true);
+      return;
+    }
+
+    try {
+      const created = await saveKelompokAyam(data, client);
+      if (created) {
+        setKelompokList((prev) => [created, ...prev.filter((k) => k.id !== created.id)]);
+      } else {
+        const refreshed = await fetchKelompokAyam(client);
+        setKelompokList(refreshed);
+      }
+      triggerToast(`Kelompok ${data.nama} (${data.jumlah} ekor) berhasil disimpan ke Supabase!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      triggerToast('Gagal menyimpan kelompok ayam: ' + msg);
     }
   };
 
-  // Kelompok Ayam Handlers (Usia, Angkatan & Prediksi Bertelur)
-  const handleAddKelompok = (data: Omit<KelompokAyam, 'id' | 'created_at'>) => {
-    const newItem: KelompokAyam = {
-      ...data,
-      id: 'kelompok-' + Date.now(),
-      created_at: new Date().toISOString(),
-    };
-    const updated = [...kelompokList, newItem];
-    setKelompokList(updated);
-    saveLocalKelompokAyam(updated);
-    triggerToast(`Kelompok ${data.nama} (${data.jumlah} ekor) berhasil ditambahkan!`);
+  const handleUpdateKelompok = async (id: string, data: Partial<KelompokAyam>) => {
+    const client = getSupabaseClient(config);
+    if (!client || !isConnected) {
+      triggerToast('Supabase belum terhubung.');
+      return;
+    }
+
+    try {
+      await updateKelompokAyam(id, data, client);
+      setKelompokList((prev) => prev.map((k) => (k.id === id ? { ...k, ...data } : k)));
+      triggerToast('Data kelompok ayam berhasil diperbarui di Supabase.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      triggerToast('Gagal memperbarui kelompok ayam: ' + msg);
+    }
   };
 
-  const handleUpdateKelompok = (id: string, data: Partial<KelompokAyam>) => {
-    const updated = kelompokList.map((k) => (k.id === id ? { ...k, ...data } : k));
-    setKelompokList(updated);
-    saveLocalKelompokAyam(updated);
-    triggerToast('Data kelompok ayam berhasil diperbarui.');
-  };
+  const handleDeleteKelompok = async (id: string) => {
+    const client = getSupabaseClient(config);
+    if (!client || !isConnected) {
+      triggerToast('Supabase belum terhubung.');
+      return;
+    }
 
-  const handleDeleteKelompok = (id: string) => {
-    const updated = kelompokList.filter((k) => k.id !== id);
-    setKelompokList(updated);
-    saveLocalKelompokAyam(updated);
-    triggerToast('Kelompok ayam berhasil dihapus.');
+    try {
+      await deleteKelompokAyam(id, client);
+      setKelompokList((prev) => prev.filter((k) => k.id !== id));
+      triggerToast('Kelompok ayam berhasil dihapus dari Supabase.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      triggerToast('Gagal menghapus kelompok ayam: ' + msg);
+    }
   };
 
   // Summary Metrics
@@ -445,12 +474,13 @@ export default function App() {
                 <h1 className="font-extrabold text-lg sm:text-xl tracking-tight leading-none">
                   TernakKu
                 </h1>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 border border-emerald-400 text-emerald-100">
-                  v2.0 Real-Time
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 border border-emerald-400 text-emerald-100 flex items-center gap-1">
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>Murni Supabase</span>
                 </span>
               </div>
               <p className="text-xs text-emerald-200 mt-0.5">
-                Manajemen Ayam Petelur & Kolam Ikan
+                Manajemen Ayam Petelur & Kolam Ikan Real-Time
               </p>
             </div>
           </div>
@@ -460,8 +490,8 @@ export default function App() {
             {/* Status Indicator */}
             <button
               onClick={() => setIsConfigOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-800/80 hover:bg-emerald-800 border border-emerald-600 transition shadow-xs"
-              title="Klik untuk konfigurasi Supabase"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-800/80 hover:bg-emerald-800 border border-emerald-600 transition shadow-xs cursor-pointer"
+              title="Klik untuk konfigurasi dan mengunci kredensial Supabase"
             >
               <span
                 className={`w-2.5 h-2.5 rounded-full ${
@@ -469,14 +499,14 @@ export default function App() {
                 }`}
               ></span>
               <span className="hidden sm:inline">
-                {isConnected ? 'Supabase Real-time' : 'Mode Demo Lokal'}
+                {isConnected ? 'Supabase Terkunci & Aktif' : 'Kunci Kredensial Supabase'}
               </span>
             </button>
 
             {/* Export index.html button */}
             <button
               onClick={() => setIsExportOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-emerald-800 hover:bg-emerald-50 shadow-xs transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-emerald-800 hover:bg-emerald-50 shadow-xs transition cursor-pointer"
               title="Download index.html siap deploy ke GitHub Pages"
             >
               <Download className="w-3.5 h-3.5" />
@@ -490,7 +520,7 @@ export default function App() {
         <div className="max-w-5xl mx-auto px-4 flex border-t border-emerald-600/70 overflow-x-auto scrollbar-none">
           <button
             onClick={() => setActiveTab('ayam')}
-            className={`py-3 px-4 font-bold text-sm border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
+            className={`py-3 px-4 font-bold text-sm border-b-2 transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'ayam'
                 ? 'border-white text-white'
                 : 'border-transparent text-emerald-200 hover:text-white'
@@ -505,7 +535,7 @@ export default function App() {
 
           <button
             onClick={() => setActiveTab('ikan')}
-            className={`py-3 px-4 font-bold text-sm border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
+            className={`py-3 px-4 font-bold text-sm border-b-2 transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'ikan'
                 ? 'border-white text-white'
                 : 'border-transparent text-emerald-200 hover:text-white'
@@ -520,7 +550,7 @@ export default function App() {
 
           <button
             onClick={() => setActiveTab('ringkasan')}
-            className={`py-3 px-4 font-bold text-sm border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
+            className={`py-3 px-4 font-bold text-sm border-b-2 transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'ringkasan'
                 ? 'border-white text-white'
                 : 'border-transparent text-emerald-200 hover:text-white'
@@ -533,17 +563,17 @@ export default function App() {
           <div className="ml-auto flex items-center gap-2 py-2">
             <button
               onClick={() => setIsSqlOpen(true)}
-              className="py-1.5 px-3 text-xs font-semibold text-emerald-200 hover:text-white hover:bg-emerald-800/60 rounded-lg transition flex items-center gap-1.5"
+              className="py-1.5 px-3 text-xs font-semibold text-emerald-200 hover:text-white hover:bg-emerald-800/60 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
             >
               <Database className="w-3.5 h-3.5" />
               <span>SQL Schema</span>
             </button>
             <button
               onClick={() => setIsConfigOpen(true)}
-              className="py-1.5 px-3 text-xs font-semibold text-emerald-200 hover:text-white hover:bg-emerald-800/60 rounded-lg transition flex items-center gap-1.5"
+              className="py-1.5 px-3 text-xs font-semibold text-emerald-200 hover:text-white hover:bg-emerald-800/60 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
             >
               <Settings className="w-3.5 h-3.5" />
-              <span>API Key</span>
+              <span>Kunci API Key</span>
             </button>
           </div>
         </div>
@@ -558,7 +588,7 @@ export default function App() {
           </div>
           <button
             onClick={() => setToastMessage(null)}
-            className="text-slate-400 hover:text-white p-1 rounded transition"
+            className="text-slate-400 hover:text-white p-1 rounded transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -572,32 +602,40 @@ export default function App() {
           <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-amber-100 rounded-xl text-amber-700 shrink-0 mt-0.5">
-                <Info className="w-5 h-5" />
+                <AlertCircle className="w-5 h-5" />
               </div>
               <div>
                 <h4 className="font-bold text-sm text-amber-950">
-                  Mode Demo Lokal Aktif (Data Tersimpan di Browser)
+                  Database Supabase Belum Terhubung (Penyimpanan Murni Cloud)
                 </h4>
                 <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
-                  Hubungkan URL & Anon Key Supabase Anda agar data tersimpan di Cloud dan sinkron
-                  secara real-time antar handphone dan komputer tanpa perlu refresh!
+                  Aplikasi ini beroperasi murni menggunakan database Supabase (tanpa data tiruan/cache lokal). Silakan kunci Project URL & Anon Key Supabase Anda agar data tersimpan aman dan tersinkron secara real-time.
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
               <button
                 onClick={() => setIsSqlOpen(true)}
-                className="text-xs font-semibold px-3 py-2 bg-white text-amber-800 border border-amber-300 rounded-xl hover:bg-amber-100/70 transition"
+                className="text-xs font-semibold px-3 py-2 bg-white text-amber-800 border border-amber-300 rounded-xl hover:bg-amber-100/70 transition cursor-pointer"
               >
-                Lihat SQL
+                Lihat SQL Schema
               </button>
               <button
                 onClick={() => setIsConfigOpen(true)}
-                className="text-xs font-bold px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-xs transition"
+                className="text-xs font-bold px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1.5"
               >
-                Hubungkan Supabase
+                <Lock className="w-3.5 h-3.5" />
+                <span>Kunci Kredensial Supabase</span>
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Loading Indicator */}
+        {isLoadingData && (
+          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2 animate-pulse">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+            <span>Sinkronisasi data langsung dari Supabase...</span>
           </div>
         )}
 
@@ -639,7 +677,7 @@ export default function App() {
                     <h3 className="font-bold text-slate-800 text-base">
                       Ringkasan Gabungan Ayam & Kolam Ikan
                     </h3>
-                    <p className="text-xs text-slate-500">Estimasi aset ternak, konsumsi pakan total, dan produktivitas</p>
+                    <p className="text-xs text-slate-500">Estimasi aset ternak, konsumsi pakan total, dan produktivitas (Murni Supabase)</p>
                   </div>
                 </div>
               </div>
@@ -676,7 +714,7 @@ export default function App() {
                     <span className="text-sm font-semibold text-slate-500">butir</span>
                   </p>
                   <div className="mt-2 text-xs text-slate-600 flex justify-between border-t border-slate-200/60 pt-2">
-                    <span>Dari {ayamList.length} hari pencatatan</span>
+                    <span>Dari {ayamList.length} hari pencatatan di Supabase</span>
                   </div>
                 </div>
               </div>
@@ -686,19 +724,20 @@ export default function App() {
             <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-700 text-xs font-bold text-emerald-200 border border-emerald-500/50">
-                    Siap Deploy
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-700 text-xs font-bold text-emerald-200 border border-emerald-500/50 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-300" />
+                    <span>Murni Supabase</span>
                   </span>
-                  <h4 className="font-extrabold text-lg">Website Satu Halaman untuk GitHub Pages</h4>
+                  <h4 className="font-extrabold text-lg">Website Siap Deploy ke GitHub Pages</h4>
                 </div>
                 <p className="text-xs text-emerald-100 max-w-xl leading-relaxed">
-                  Semua kode HTML, CSS Tailwind CDN, JS Supabase Real-time, dan fungsi lengkap telah dikemas dalam 1 file <code>index.html</code>. Anda cukup upload ke GitHub Pages tanpa perlu build tool atau hosting berbayar.
+                  Semua kode HTML, CSS Tailwind, dan library Supabase Real-time telah dikemas dalam 1 file <code>index.html</code>. Kredensial Supabase Anda dapat langsung dikunci ke dalam file sehingga pengunjung website langsung tersambung ke database tanpa perlu setup manual.
                 </p>
               </div>
 
               <button
                 onClick={() => setIsExportOpen(true)}
-                className="px-5 py-3 bg-white text-emerald-900 hover:bg-emerald-50 font-extrabold text-xs rounded-xl shadow-md transition flex items-center gap-2 shrink-0"
+                className="px-5 py-3 bg-white text-emerald-900 hover:bg-emerald-50 font-extrabold text-xs rounded-xl shadow-md transition flex items-center gap-2 shrink-0 cursor-pointer"
               >
                 <Download className="w-4 h-4" />
                 <span>Buka Modal Export index.html</span>
@@ -710,18 +749,18 @@ export default function App() {
 
       {/* FOOTER */}
       <footer className="max-w-5xl mx-auto px-4 mt-8 pt-4 border-t border-slate-200 text-center text-xs text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2">
-        <p>🌾 <strong>TernakKu</strong> &mdash; Manajemen Ayam & Ikan Real-time (Supabase CDN)</p>
+        <p>🌾 <strong>TernakKu</strong> &mdash; Manajemen Ayam & Ikan Real-time (Murni Supabase)</p>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsSqlOpen(true)}
-            className="hover:text-slate-700 transition underline"
+            className="hover:text-slate-700 transition underline cursor-pointer"
           >
             SQL Script
           </button>
           <span>&bull;</span>
           <button
             onClick={() => setIsExportOpen(true)}
-            className="hover:text-slate-700 transition underline"
+            className="hover:text-slate-700 transition underline cursor-pointer"
           >
             Export GitHub Pages
           </button>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SupabaseConfig } from '../types';
-import { X, Zap, CheckCircle2, AlertCircle, ExternalLink, KeyRound } from 'lucide-react';
+import { X, Lock, CheckCircle2, AlertCircle, ExternalLink, KeyRound, ShieldCheck } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 interface Props {
@@ -28,12 +28,12 @@ export const ConfigModal: React.FC<Props> = ({
   const handleTest = async () => {
     if (!url.trim() || !anonKey.trim()) {
       setTestState('error');
-      setTestMsg('Harap isi URL dan Anon Key terlebih dahulu.');
+      setTestMsg('Harap isi Project URL dan Anon Key terlebih dahulu.');
       return;
     }
 
     setTestState('testing');
-    setTestMsg('Menghubungkan ke Supabase...');
+    setTestMsg('Menghubungkan & menguji koneksi Supabase...');
 
     try {
       const client = createClient(url.trim(), anonKey.trim());
@@ -42,12 +42,12 @@ export const ConfigModal: React.FC<Props> = ({
       if (error) throw error;
 
       setTestState('success');
-      setTestMsg('Berhasil terhubung ke Supabase! Tabel catatan_ayam siap.');
+      setTestMsg('Koneksi berhasil! Database Supabase siap digunakan & dapat dikunci permanen.');
     } catch (err: unknown) {
       setTestState('error');
       const msg = err instanceof Error ? err.message : String(err);
       setTestMsg(
-        `Gagal terhubung (${msg}). Pastikan script SQL schema di menu "SQL & Panduan" sudah dijalankan di dashboard Supabase.`
+        `Gagal terhubung (${msg}). Pastikan script di menu "SQL Schema" sudah dijalankan di Supabase SQL Editor.`
       );
     }
   };
@@ -62,7 +62,7 @@ export const ConfigModal: React.FC<Props> = ({
   };
 
   const handleClear = () => {
-    if (window.confirm('Lepaskan koneksi Supabase dan kembali ke mode demo lokal?')) {
+    if (window.confirm('Kosongkan kredensial Supabase yang terkunci saat ini?')) {
       setUrl('');
       setAnonKey('');
       onSave({ url: '', anonKey: '' });
@@ -75,38 +75,43 @@ export const ConfigModal: React.FC<Props> = ({
       <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-              <Zap className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+              <Lock className="w-4 h-4 text-emerald-700" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-800 text-sm">Pengaturan Database Supabase</h3>
-              <p className="text-xs text-slate-500">Koneksi real-time untuk data ayam & kolam ikan</p>
+              <h3 className="font-bold text-slate-800 text-sm">Kunci Kredensial Supabase (Permanen)</h3>
+              <p className="text-xs text-slate-500">Data murni langsung dari database Supabase, tanpa cache lokal</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 transition"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-1">
-            <p className="font-semibold flex items-center gap-1.5">
-              <span>💡</span> Di mana menemukan kredensial ini?
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 space-y-1.5">
+            <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Kredensial Dikunci Permanen</span>
+            </div>
+            <p className="text-emerald-700 leading-relaxed text-[11px]">
+              Kredensial yang Anda simpan di sini akan dikunci secara permanen di aplikasi. Anda tidak perlu memasukkannya ulang saat membuka kembali aplikasi atau saat cache browser dibersihkan.
             </p>
-            <p className="text-emerald-700 leading-relaxed">
-              Buka <a href="https://supabase.com" target="_blank" rel="noreferrer" className="underline font-bold inline-flex items-center gap-0.5">Supabase Dashboard <ExternalLink className="w-3 h-3" /></a> &rarr; Project Anda &rarr; <strong>Project Settings</strong> (ikon gerigi) &rarr; <strong>API</strong>.
+            <p className="text-emerald-700 leading-relaxed text-[11px] pt-1 border-t border-emerald-200/60">
+              Kredensial dapat dilihat di <a href="https://supabase.com" target="_blank" rel="noreferrer" className="underline font-bold inline-flex items-center gap-0.5">Supabase Dashboard <ExternalLink className="w-3 h-3" /></a> &rarr; <strong>Project Settings</strong> &rarr; <strong>API</strong>.
             </p>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-              <span>Project URL</span>
+              <span>Project URL Supabase</span>
             </label>
             <input
               type="url"
+              required
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://xyzabcdefghijklm.supabase.co"
@@ -121,6 +126,7 @@ export const ConfigModal: React.FC<Props> = ({
             </label>
             <textarea
               rows={3}
+              required
               value={anonKey}
               onChange={(e) => setAnonKey(e.target.value)}
               placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -152,9 +158,9 @@ export const ConfigModal: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={handleClear}
-                  className="text-xs text-rose-600 hover:text-rose-800 hover:underline font-semibold"
+                  className="text-xs text-rose-600 hover:text-rose-800 hover:underline font-semibold cursor-pointer"
                 >
-                  Lepas Koneksi
+                  Kosongkan Kredensial
                 </button>
               )}
             </div>
@@ -164,15 +170,16 @@ export const ConfigModal: React.FC<Props> = ({
                 type="button"
                 onClick={handleTest}
                 disabled={testState === 'testing'}
-                className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+                className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition cursor-pointer"
               >
-                {testState === 'testing' ? 'Memeriksa...' : 'Tes Koneksi'}
+                {testState === 'testing' ? 'Menguji...' : 'Tes Koneksi'}
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition shadow-xs"
+                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition shadow-xs cursor-pointer flex items-center gap-1.5"
               >
-                Simpan & Sambungkan
+                <Lock className="w-3.5 h-3.5" />
+                <span>Simpan & Kunci Kredensial</span>
               </button>
             </div>
           </div>
