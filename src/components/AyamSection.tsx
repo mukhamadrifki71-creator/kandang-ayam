@@ -13,6 +13,8 @@ import {
   Sparkles,
   Clock,
   Layers,
+  Edit2,
+  CheckCircle2,
 } from 'lucide-react';
 import { AyamSmartAdvisor } from './AyamSmartAdvisor';
 import { KelompokAyamManager } from './KelompokAyamManager';
@@ -26,6 +28,7 @@ import {
 interface Props {
   ayamList: CatatanAyam[];
   onAdd: (data: Omit<CatatanAyam, 'id' | 'created_at'>) => Promise<void>;
+  onUpdate: (id: string, data: Partial<CatatanAyam>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   isRealtimeActive: boolean;
   kelompokList: KelompokAyam[];
@@ -37,6 +40,7 @@ interface Props {
 export const AyamSection: React.FC<Props> = ({
   ayamList,
   onAdd,
+  onUpdate,
   onDelete,
   isRealtimeActive,
   kelompokList,
@@ -137,6 +141,62 @@ export const AyamSection: React.FC<Props> = ({
       console.error('Gagal menghapus catatan ayam:', err);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  // State dialog Edit Catatan Ayam & Tambah Telur
+  const [itemToEdit, setItemToEdit] = useState<CatatanAyam | null>(null);
+  const [editTanggal, setEditTanggal] = useState('');
+  const [editJumlahAyam, setEditJumlahAyam] = useState('');
+  const [editJumlahTelur, setEditJumlahTelur] = useState('');
+  const [editPakanKg, setEditPakanKg] = useState('');
+  const [editUsiaMinggu, setEditUsiaMinggu] = useState('');
+  const [editCatatan, setEditCatatan] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [quickActionId, setQuickActionId] = useState<string | null>(null);
+
+  const openEditModal = (item: CatatanAyam) => {
+    setItemToEdit(item);
+    setEditTanggal(item.tanggal);
+    setEditJumlahAyam(String(item.jumlah_ayam || 0));
+    setEditJumlahTelur(String(item.jumlah_telur || 0));
+    setEditPakanKg(String(item.pakan_kg || 0));
+    setEditUsiaMinggu(item.usia_minggu !== undefined && item.usia_minggu !== null ? String(item.usia_minggu) : '');
+    setEditCatatan(item.catatan || '');
+  };
+
+  const handleQuickAddTelur = async (item: CatatanAyam, amount: number) => {
+    try {
+      setQuickActionId(item.id);
+      const current = Number(item.jumlah_telur) || 0;
+      const nextVal = Math.max(0, current + amount);
+      await onUpdate(item.id, { jumlah_telur: nextVal });
+    } catch (err) {
+      console.error('Gagal tambah telur cepat:', err);
+    } finally {
+      setQuickActionId(null);
+    }
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!itemToEdit) return;
+
+    try {
+      setIsSavingEdit(true);
+      await onUpdate(itemToEdit.id, {
+        tanggal: editTanggal,
+        jumlah_ayam: parseInt(editJumlahAyam, 10) || 0,
+        jumlah_telur: parseInt(editJumlahTelur, 10) || 0,
+        pakan_kg: parseFloat(editPakanKg) || 0,
+        usia_minggu: editUsiaMinggu !== '' ? parseInt(editUsiaMinggu, 10) : undefined,
+        catatan: editCatatan.trim(),
+      });
+      setItemToEdit(null);
+    } catch (err) {
+      console.error('Gagal menyimpan perubahan catatan ayam:', err);
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -488,8 +548,29 @@ export const AyamSection: React.FC<Props> = ({
                         <td className="py-3 px-4 text-right text-slate-600 whitespace-nowrap">
                           {gramPerEkor} gr
                         </td>
-                        <td className="py-3 px-4 text-right font-bold text-amber-700 whitespace-nowrap">
-                          {telur} butir
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <span className="font-bold text-amber-700 text-sm">{telur}</span>
+                            <span className="text-[11px] text-slate-400">btr</span>
+                            <button
+                              type="button"
+                              onClick={() => handleQuickAddTelur(item, 1)}
+                              disabled={quickActionId === item.id}
+                              title="Tambah 1 Telur Cepat"
+                              className="px-1.5 py-0.5 text-[10px] font-black bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-md transition cursor-pointer shadow-2xs disabled:opacity-50"
+                            >
+                              +1
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleQuickAddTelur(item, 5)}
+                              disabled={quickActionId === item.id}
+                              title="Tambah 5 Telur Cepat"
+                              className="px-1.5 py-0.5 text-[10px] font-black bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-md transition cursor-pointer shadow-2xs disabled:opacity-50"
+                            >
+                              +5
+                            </button>
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">
                           <span
@@ -507,15 +588,25 @@ export const AyamSection: React.FC<Props> = ({
                         <td className="py-3 px-4 text-slate-500 max-w-[180px] truncate">
                           {item.catatan || '-'}
                         </td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setItemToDelete(item)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                            title="Hapus Catatan"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(item)}
+                              className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition cursor-pointer"
+                              title="Edit Catatan & Tambah Telur"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setItemToDelete(item)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Hapus Catatan"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -538,14 +629,24 @@ export const AyamSection: React.FC<Props> = ({
                   <div key={item.id} className="p-4 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-sm text-slate-800">{item.tanggal}</span>
-                      <button
-                        type="button"
-                        onClick={() => setItemToDelete(item)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                        title="Hapus Catatan"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(item)}
+                          className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition cursor-pointer"
+                          title="Edit Catatan & Tambah Telur"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setItemToDelete(item)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                          title="Hapus Catatan"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
                     {/* USIA & PREDIKSI HEWAN BADGE DI MOBILE */}
@@ -596,11 +697,31 @@ export const AyamSection: React.FC<Props> = ({
                           {pakan} kg <span className="text-[10px] text-slate-500 font-normal">({gramPerEkor}g)</span>
                         </p>
                       </div>
-                      <div>
-                        <p className="text-[10px] text-slate-500 font-medium">Telur</p>
-                        <p className="text-xs font-bold text-amber-700">
+                      <div className="bg-amber-50/80 p-1.5 rounded-lg border border-amber-200/60">
+                        <p className="text-[10px] text-amber-800 font-bold uppercase">Telur</p>
+                        <p className="text-xs font-extrabold text-amber-700">
                           {telur} <span className="text-[10px] font-semibold text-indigo-600">({prodRate}%)</span>
                         </p>
+                        <div className="flex items-center justify-center gap-1 mt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleQuickAddTelur(item, 1)}
+                            disabled={quickActionId === item.id}
+                            title="Tambah 1 Telur"
+                            className="px-1.5 py-0.5 text-[10px] font-black bg-amber-200 hover:bg-amber-300 text-amber-950 rounded cursor-pointer transition shadow-2xs disabled:opacity-50"
+                          >
+                            +1
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleQuickAddTelur(item, 5)}
+                            disabled={quickActionId === item.id}
+                            title="Tambah 5 Telur"
+                            className="px-1.5 py-0.5 text-[10px] font-black bg-white text-amber-800 border border-amber-300 hover:bg-amber-100 rounded cursor-pointer transition shadow-2xs disabled:opacity-50"
+                          >
+                            +5
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -616,6 +737,185 @@ export const AyamSection: React.FC<Props> = ({
           </div>
         )}
       </div>
+
+      {/* MODAL EDIT CATATAN AYAM & TAMBAH TELUR */}
+      {itemToEdit && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-emerald-50/60">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                  <Egg className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-800">
+                    Edit Catatan & Tambah Telur
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Tanggal: {itemToEdit.tanggal} {itemToEdit.kelompok_nama ? `| ${itemToEdit.kelompok_nama}` : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setItemToEdit(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200/50 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="p-5 space-y-4">
+              {/* Highlight Card: Input & Tambah Telur */}
+              <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                    <Egg className="w-4 h-4 text-amber-600" />
+                    <span>Jumlah Telur (Butir)</span>
+                  </label>
+                  {/* Live Productivity Preview */}
+                  {parseInt(editJumlahAyam, 10) > 0 && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
+                      Produktivitas: {Math.round(((parseInt(editJumlahTelur, 10) || 0) / parseInt(editJumlahAyam, 10)) * 100)}%
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={editJumlahTelur}
+                    onChange={(e) => setEditJumlahTelur(e.target.value)}
+                    className="w-full px-3 py-2 text-lg font-black text-amber-950 bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    placeholder="0"
+                  />
+                </div>
+
+                {/* Quick Add Buttons */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-amber-200/60">
+                  <span className="text-[10px] font-bold text-amber-800">Tambah Cepat:</span>
+                  {[1, 2, 5, 10, 20].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => {
+                        const cur = parseInt(editJumlahTelur, 10) || 0;
+                        setEditJumlahTelur(String(cur + num));
+                      }}
+                      className="px-2 py-1 text-[11px] font-bold bg-white text-amber-800 hover:bg-amber-100 border border-amber-300 rounded-md transition cursor-pointer shadow-2xs"
+                    >
+                      +{num}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setEditJumlahTelur('0')}
+                    className="ml-auto text-[10px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                  >
+                    Reset (0)
+                  </button>
+                </div>
+              </div>
+
+              {/* Tanggal & Populasi */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Tanggal Catatan
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editTanggal}
+                    onChange={(e) => setEditTanggal(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Populasi (Ekor)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={editJumlahAyam}
+                    onChange={(e) => setEditJumlahAyam(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Usia & Pakan */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Usia Ayam (Minggu)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editUsiaMinggu}
+                    onChange={(e) => setEditUsiaMinggu(e.target.value)}
+                    placeholder="Contoh: 18"
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Pakan (Kg)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.05"
+                    min="0"
+                    required
+                    value={editPakanKg}
+                    onChange={(e) => setEditPakanKg(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Catatan Tambahan
+                </label>
+                <input
+                  type="text"
+                  value={editCatatan}
+                  onChange={(e) => setEditCatatan(e.target.value)}
+                  placeholder="Kondisi ayam, jenis pakan, dll."
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setItemToEdit(null)}
+                  disabled={isSavingEdit}
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{isSavingEdit ? 'Menyimpan...' : 'Simpan Perubahan ke Supabase'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL DIALOG KONFIRMASI HAPUS (BEBAS DARI BLOKIR IFRAME) */}
       {itemToDelete && (

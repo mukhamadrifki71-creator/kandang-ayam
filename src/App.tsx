@@ -6,6 +6,7 @@ import {
   getSupabaseClient,
   fetchCatatanAyam,
   saveCatatanAyam,
+  updateCatatanAyam,
   deleteCatatanAyam,
   fetchCatatanIkan,
   saveCatatanIkan,
@@ -277,6 +278,29 @@ export default function App() {
       const msg = err instanceof Error ? err.message : String(err);
       triggerToast('Gagal menyimpan ke Supabase: ' + msg);
       throw err;
+    }
+  };
+
+  // Update Ayam Record (Murni Supabase - bisa edit & tambah telur)
+  const handleUpdateAyam = async (id: string, updates: Partial<CatatanAyam>) => {
+    const client = getSupabaseClient(config);
+    if (!client || !isConnected) {
+      triggerToast('Supabase belum terhubung.');
+      return;
+    }
+
+    const previous = [...ayamList];
+    setAyamList((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
+    );
+
+    try {
+      await updateCatatanAyam(id, updates, client);
+      triggerToast('Catatan ayam & jumlah telur berhasil diperbarui di Supabase!');
+    } catch (err: unknown) {
+      setAyamList(previous);
+      const msg = err instanceof Error ? err.message : String(err);
+      triggerToast('Gagal memperbarui catatan di Supabase: ' + msg);
     }
   };
 
@@ -644,6 +668,7 @@ export default function App() {
           <AyamSection
             ayamList={ayamList}
             onAdd={handleAddAyam}
+            onUpdate={handleUpdateAyam}
             onDelete={handleDeleteAyam}
             isRealtimeActive={isRealtimeActive}
             kelompokList={kelompokList}

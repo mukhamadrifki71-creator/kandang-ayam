@@ -144,6 +144,43 @@ export async function saveCatatanAyam(catatan: Omit<CatatanAyam, 'id' | 'created
   return res.data && res.data[0] ? res.data[0] : null;
 }
 
+export async function updateCatatanAyam(
+  id: string,
+  updates: Partial<CatatanAyam>,
+  clientOverride?: SupabaseClient
+) {
+  const client = clientOverride || getSupabaseClient();
+  if (!client) {
+    throw new Error('Supabase belum terhubung.');
+  }
+
+  const payload: Record<string, unknown> = {};
+  if (updates.tanggal !== undefined) payload.tanggal = updates.tanggal;
+  if (updates.jumlah_ayam !== undefined) payload.jumlah_ayam = updates.jumlah_ayam;
+  if (updates.pakan_kg !== undefined) payload.pakan_kg = updates.pakan_kg;
+  if (updates.jumlah_telur !== undefined) payload.jumlah_telur = updates.jumlah_telur;
+  if (updates.catatan !== undefined) payload.catatan = updates.catatan;
+  if (updates.usia_minggu !== undefined) payload.usia_minggu = updates.usia_minggu;
+  if (updates.kelompok_nama !== undefined) payload.kelompok_nama = updates.kelompok_nama;
+  if (updates.jenis_ayam !== undefined) payload.jenis_ayam = updates.jenis_ayam;
+
+  let res = await client.from('catatan_ayam').update(payload).eq('id', id).select();
+
+  // Fallback jika usia_minggu atau kelompok_nama belum ada di kolom skema
+  if (res.error && res.error.code === 'PGRST204') {
+    delete payload.usia_minggu;
+    delete payload.kelompok_nama;
+    res = await client.from('catatan_ayam').update(payload).eq('id', id).select();
+  }
+
+  if (res.error) {
+    console.error('Gagal memperbarui catatan ayam di Supabase:', res.error);
+    throw new Error(`Gagal memperbarui catatan ayam: ${res.error.message}`);
+  }
+
+  return res.data && res.data[0] ? res.data[0] : null;
+}
+
 export async function deleteCatatanAyam(id: string, clientOverride?: SupabaseClient): Promise<void> {
   const client = clientOverride || getSupabaseClient();
   if (!client) {
